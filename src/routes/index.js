@@ -10,6 +10,9 @@ import financerRoutes from "./financer.js";
 import vehicleMasterRoutes from "./vehicleMaster.js";
 import customerRoutes from "./customer.js";
 import enquiryRoutes from "./enquiry.js";
+import vehiclePriceRoutes from "./vehiclePrice.js";
+import quotationRoutes from "./quotation.js";
+import bookingRoutes from "./booking.js";
 
 const router = Router();
 
@@ -24,5 +27,8 @@ router.use("/financer", financerRoutes);
 router.use("/vehicleMaster", vehicleMasterRoutes);
 router.use("/customer", customerRoutes);
 router.use("/enquiry", enquiryRoutes);
+router.use("/vehiclePrice", vehiclePriceRoutes);
+router.use("/quotation", quotationRoutes);
+router.use("/booking", bookingRoutes);
 
 export default router;
