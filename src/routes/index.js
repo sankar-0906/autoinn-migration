@@ -20,6 +20,8 @@ import jobOrderRoutes from "./jobOrder.js";
 import jobOrderLogRoutes from "./jobOrderLog.js";
 import ledgerRoutes from "./ledger.js";
 import reportRoutes from "./reports.js";
+import supplierRoutes from "./supplier.js";
+import purchaseChallanRoutes from "./purchaseChallan.js";
 
 const router = Router();
 
@@ -44,5 +46,7 @@ router.use("/jobOrder", jobOrderRoutes);
 router.use("/jobOrderLog", jobOrderLogRoutes);
 router.use("/ledger", ledgerRoutes);
 router.use("/reports", reportRoutes);
+router.use("/supplier", supplierRoutes);
+router.use("/purchaseChallan", purchaseChallanRoutes);
 
 export default router;
