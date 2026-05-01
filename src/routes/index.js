@@ -27,6 +27,10 @@ import purchaseSpareInvoiceRoutes from "./purchaseSpareInvoice.js";
 import saleInvoiceRoutes from "./saleInvoice.js";
 import saleRegisterRoutes from "./saleRegister.js";
 import soldVehicleRoutes from "./soldVehicle.js";
+import jobCodeRoutes from "./jobCode.js";
+import estimateRoutes from "./estimate.js";
+import jobInvoiceRoutes from "./jobInvoice.js";
+import saleSpareInvoiceRoutes from "./saleSpareInvoice.js";
 
 const router = Router();
 
@@ -58,5 +62,9 @@ router.use("/purchaseSpareInvoice", purchaseSpareInvoiceRoutes);
 router.use("/saleInvoice", saleInvoiceRoutes);
 router.use("/saleRegister", saleRegisterRoutes);
 router.use("/soldVehicle", soldVehicleRoutes);
+router.use("/jobCode", jobCodeRoutes);
+router.use("/estimate", estimateRoutes);
+router.use("/jobInvoice", jobInvoiceRoutes);
+router.use("/saleSpareInvoice", saleSpareInvoiceRoutes);
 
 export default router;
