@@ -1,0 +1,2981 @@
+// ============================================
+// PRISMA 7 SCHEMA FOR AUTOINN
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum VehicleCategory {
+  MOTORCYCLE
+  SCOOTER
+}
+
+enum Status {
+  AVAILABLE
+  NOTAVAILABLE
+}
+
+enum ServiceType {
+  FREE
+  PAID
+  BONUS
+  AMC
+  MINOR
+  ACCIDENTAL
+}
+
+enum OrderType {
+  COUNTER_SALE
+  JOB_CARD
+  INVENTORY
+}
+
+enum OrderStatus {
+  ORDERED
+  PENDING
+  RECEIVED
+  AVAILABLE
+  PARTIALLY_RECEIVED
+  PARTIALLY_ORDERED
+  ISSUED
+}
+
+enum DealerType {
+  RegisteredDealer
+  UnregisteredDealer
+  UINHolder
+  CompositionDealer
+}
+
+enum ActStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AccType {
+  SAVINGS
+  CURRENT
+  OD
+  CREDIT
+  CARD
+}
+
+enum JobStatus {
+  VEHICLERECEIVED
+  MECHANICALLOCATED
+  WORKINPROGRESS
+  SPARESORDERED
+  COMPLETED
+  WASHING
+  FINALINSPECTION
+  PREINVOICE
+  PAYMENTRECEIVED
+  GATEPASS
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  CANCELLED
+}
+
+enum PaymentMethod {
+  CASH
+  UPI
+  CARD
+}
+
+enum DenominationTransactionType {
+  CREDIT
+  DEBIT
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model Country {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sortName  String    @unique
+  phoneCode String?
+  states    State[]   @relation("CountryHasStates")
+  addresses Address[] @relation("AddressHasCountry")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model State {
+  id        String    @id @default(cuid())
+  name      String
+  countryId String?
+  country   Country?   @relation("CountryHasStates", fields: [countryId], references: [id])
+  cities    City[]    @relation("StateHasCities")
+  addresses Address[] @relation("AddressHasState")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model City {
+  id        String    @id @default(cuid())
+  name      String
+  stateId   String?
+  state     State?     @relation("StateHasCities", fields: [stateId], references: [id])
+  rtos      Rto[]     @relation("CityHasRtos")
+  addresses Address[] @relation("AddressHasCity")
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+}
+
+model Rto {
+  id        String    @id @default(cuid())
+  code      String
+  area      String
+  cityId    String?
+  city      City?      @relation("CityHasRtos", fields: [cityId], references: [id])
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  bookings  Booking[] @relation("BookingHasRTOData")
+}
+
+model User {
+  id              String           @id @default(cuid())
+  phone           String?
+  phone2          String?          @unique
+  password        String?
+  profilePicture  String?
+  profile         EmployeeProfile? @relation("UserHasUserProfile")
+  customerDetails Customer?        @relation("UserHasCustomer")
+  status          Boolean?
+  employee        Boolean?
+  email           String?
+  verified        Boolean?
+  lastLoginAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  ramps            Ramp[]             @relation("RampHasMechanic")
+  createdById      String?            @map("createdBy")
+  createdBy        User?              @relation("UserWasCreatedByUser", fields: [createdById], references: [id])
+  createdUsers     User[]             @relation("UserWasCreatedByUser")
+
+  // Back-relations from other models
+  createdProfiles       EmployeeProfile[]       @relation("UserProfileWasCreatedBy")
+  createdDocuments      EmployeeDocument[]      @relation("UserDocumentWasCreatedBy")
+  createdDepts          Department[]            @relation("DepartmentWasCreatedBy")
+  createdAddresses      Address[]               @relation("AddressWasCreatedByUser")
+  createdBanks          BankDetails[]           @relation("CompanyBankDetailsWasCreatedByUser")
+  createdCos            Company[]               @relation("CompanyWasCreatedByUser")
+  createdBranches       Branch[]                @relation("BranchWasCreatedByUser")
+  createdFinancers      Financer[]              @relation("FinancerWasCreatedByUser")
+  createdFinConts       FinancerContact[]       @relation("FinancerContactWasCreatedByUser")
+  createdInsurers       Insurance[]             @relation("InsuranceWasCreatedByUser")
+  createdInsConts       InsuranceContact[]      @relation("InsuranceContactWasCreatedByUser")
+  createdSuppliers      Supplier[]              @relation("SupplierWasCreatedByUser")
+  createdSupConts       SupplierContact[]       @relation("SupplierContactWasCreatedByUser")
+  createdSubs           SubDealer[]             @relation("SubDealerWasCreatedByUser")
+  createdSubConts       SubDealerContact[]      @relation("SubDealerContactWasCreatedByUser")
+  createdFiles          File[]                  @relation("FileWasCreatedBy")
+  createdImages         Image[]                 @relation("ImageWasCreatedBy")
+  createdFileMgmt       FileManagement[]        @relation("FileManagementWasCreatedBy")
+  createdHsns           Hsn[]                   @relation("HsnWasCreatedBy")
+  createdSacs           Sac[]                   @relation("SacWasCreatedBy")
+  createdIdCre          idCreation[]            @relation("CreationWasCreatedBy")
+  createdVehMasters     VehicleMaster[]         @relation("VehicleMasterWasCreatedBy")
+  createdServices       Service[]               @relation("ServiceWasCreatedBy")
+  createdVehPrices      VehiclePrice[]          @relation("VehiclePriceWasCreatedBy")
+  createdManufacturers  Manufacturer[]          @relation("ManufacturerWasCreatedBy")
+  createdParts          PartsMaster[]           @relation("PartsMasterWasCreatedBy")
+  createdMultiVeh       MultiVehicle[]          @relation("MultiVehicleWasCreatedByUser")
+  createdAdjSpares      AdjustSparesInventory[] @relation("AdjustSparesInventoryHasUser")
+  createdStockCh        StockCheck[]            @relation("StockCheckHasCreatedByUser")
+  mechanicJobOrders     JobOrder[]              @relation("JobOrderHasMechanic")
+  createdJobOrders      JobOrder[]              @relation("JobOrderWasCreatedBy")
+  createdJobCodes       JobCode[]               @relation("JobCodeWasCreatedBy")
+  createdEstimates      Estimate[]              @relation("EstimateWasCreatedBy")
+  createdEstimateItems  EstimateItem[]          @relation("EstimateItemWasCreatedBy")
+  createdJVParts        JobVehicleParts[]       @relation("JobVehiclePartsWasCreatedBy")
+  deletedJVParts        JobVehicleParts[]       @relation("JobVehiclePartsWasDeletedBy")
+  createdJVImages       JobVehicleImage[]       @relation("JobVehicleImageWasCreatedBy")
+  createdComplaints     JobVehicleComplaint[]   @relation("ComplaintWasCreatedBy")
+  mechanicMaterialIssues MaterialIssue[]        @relation("MaterialIssueHasMechanic")
+  mechanicMaterialParts MaterialPartsIssue[]    @relation("MaterialPartsIssueHasMechanic")
+  createdMaterialIs     MaterialIssue[]         @relation("MaterialIssueWasCreatedBy")
+  createdJobInvoices    JobInvoice[]            @relation("JobInvoiceWasCreatedBy")
+  updatedDenomInv       CompanyDenominationInventory[] @relation("CompanyDenominationUpdatedBy")
+  createdAutoCallTemplates AutoCallVoiceTemplate[] @relation("AutoCallTemplateUpdatedBy")
+  createdTasks          Task[]                  @relation("TasksWasCreatedByUser")
+  createdGroups         Group[]                 @relation("GroupWasCreatedByUser")
+  createdMessages       Message[]               @relation("MessageWasCreatedByUser")
+  updatedSmsTemplates   SmsTemplate[]           @relation("TemplateWasCreatedByUser")
+  updatedWatsTemplates  WhatsappTemplate[]      @relation("WhatsappTemplateWasCreatedByUser")
+  updatedWatsPromotions WhatsappPromotion[]     @relation("WhatsappPromotionWasCreatedByUser")
+  createdCustomers      Customer[]              @relation("CustomerWasCreatedByUser")
+  createdCustomerPhones CustomerPhone[]         @relation("CustomerPhoneWasCreatedByUser")
+  executiveQuotations   Quotation[]             @relation("QuotationHasExecutive")
+  assignedExecQuotations Quotation[]            @relation("QuotationAssignedExecutive")
+  createdQuotations     Quotation[]             @relation("QuotationWasCreatedByUser")
+  createdQuotVehicles   QuotationVehicle[]      @relation("QuotationVehicleWasCreatedByUser")
+  createdQuotPrices     QuotationPrice[]        @relation("QuotationPriceWasCreatedBy")
+  createdInsTypes       InsuranceType[]         @relation("InsTypeWasCreatedByUser")
+  createdOptTypes       OptionalType[]          @relation("OptTypeWasCreatedByUser")
+  executiveBookings     Booking[]               @relation("BookingHasExecutive")
+  createdBookings       Booking[]               @relation("BookingWasCreatedByUser")
+  branchAccess          UserBranchAccess[]      @relation("UserBranchAccessToUser")
+  changedBookingHistories BookingHistory[]      @relation("BookingHistoryChangedBy")
+  createdVehicles       Vehicle[]               @relation("SoldVehicleWasCreatedByUser")
+  createdMultiCustomers MultiCustomer[]         @relation("MultiCustomerWasCreatedByUser")
+  createdLedgers        Ledger[]                @relation("LedgerWasCreatedByUser")
+  createdSaleRegisters   SaleRegister[]          @relation("SaleRegisterWasCreatedByUser")
+  createdSaleInvoices    SaleInvoice[]           @relation("SaleInvoiceWasCreatedByUser")
+  createdPurchaseChallan VehiclePurchaseChallan[] @relation("PurchaseChallanWasCreatedByUser")
+  createdVehicleDetails  PurchasedVehicleDetail[] @relation("VehicleDetailWasCreatedByUser")
+  createdPurchaseReturns VehiclePurchaseReturn[]  @relation("PurchaseReturnWasCreatedByUser")
+  createdPurchaseInvoices VehiclePurchaseInvoice[] @relation("PurchaseInvoiceWasCreatedByUser")
+  createdFrameNumbers    FrameNumber[]            @relation("FrameNumberWasCreatedByUser")
+  cashWithdrawals        CashWithdrawalHistory[]  @relation("CashWithdrawnBy")
+  salesTargets           SalesTarget[]            @relation("SalesTargetHasUser")
+  createdActivities      Activity[]               @relation("ActivityWasCreatedByUser")
+
+  branches               Branch[]                @relation("BranchHasManyUser")
+}
+
+model EmployeeProfile {
+  id              String             @id @default(cuid())
+  userId          String?            @unique @map("user")
+  user            User?              @relation("UserHasUserProfile", fields: [userId], references: [id])
+  employeeName    String?
+  employeeId      String?
+  fatherName      String?
+  dateOfBirth     DateTime?
+  dateOfJoining   DateTime?
+  bloodGroup      String?
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+
+  departmentId    String?            @map("department")
+  department      Department?        @relation("EmployeeProfileHasDepartment", fields: [departmentId], references: [id])
+  addressId       String?            @map("address")
+  address         Address?           @relation("UserProfileHasAddress", fields: [addressId], references: [id])
+  bankDetailsId   String?            @map("bankDetails")
+  bankDetails     BankDetails?       @relation("UserProfileHasBankDetails", fields: [bankDetailsId], references: [id])
+  createdById     String?            @map("createdBy")
+  createdBy       User?              @relation("UserProfileWasCreatedBy", fields: [createdById], references: [id])
+
+  documents       EmployeeDocument[] @relation("UserHasUserDocument")
+  branch          Branch[]           @relation("UserProfileHasBranch")
+  companyPayments CompanyPayment[]   @relation("CompanyPaymentPaidByEmployee")
+  collectedPayments Payment[]        @relation("CashierCollectedPayment")
+}
+
+model EmployeeDocument {
+  id            String           @id @default(cuid())
+  type          String?
+  typeValue     String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  userProfileId String?          @map("userProfile")
+  userProfile   EmployeeProfile? @relation("UserHasUserDocument", fields: [userProfileId], references: [id])
+  filesId       String?          @map("files")
+  files         File?            @relation("UserDocumentHasFile", fields: [filesId], references: [id])
+  createdById   String?          @map("createdBy")
+  createdBy     User?            @relation("UserDocumentWasCreatedBy", fields: [createdById], references: [id])
+}
+
+model Department {
+  id               String            @id @default(cuid())
+  role             String            @unique
+  departmentType   String[]
+  othersAccess     Boolean?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  createdById      String?           @map("createdBy")
+  createdBy        User?             @relation("DepartmentWasCreatedBy", fields: [createdById], references: [id])
+  employeeProfiles EmployeeProfile[] @relation("EmployeeProfileHasDepartment")
+  roleAccess       RoleAccess[]      @relation("DepartmentHasRoleAccess")
+}
+
+model RoleAccess {
+  id           String      @id @default(cuid())
+  master       String?
+  subModule    String?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  departmentId String?      @map("department")
+  department   Department? @relation("DepartmentHasRoleAccess", fields: [departmentId], references: [id])
+  accessId     String?      @map("access")
+  access       Access?     @relation("RoleAccessHasAccess", fields: [accessId], references: [id])
+}
+
+model Access {
+  id         String       @id @default(cuid())
+  create     Boolean?
+  update     Boolean?
+  delete     Boolean?
+  read       Boolean?
+  print      Boolean?
+  roleAccess RoleAccess[] @relation("RoleAccessHasAccess")
+}
+
+model Company {
+  id            String   @id @default(cuid())
+  name          String
+  cin           String?
+  pan           String?
+  email         String?
+  logo          String?
+  website       String?
+  contactPerson String?
+  phone         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdById   String?  @map("createdBy")
+  createdBy     User?    @relation("CompanyWasCreatedByUser", fields: [createdById], references: [id])
+  branches      Branch[] @relation("CompanyHasManyBranch")
+}
+
+model CompanyPayment {
+  id              String           @id @default(cuid())
+  module          String?
+  moduleId        String?
+  billAmount      Float?
+  collectedAmount Float?
+  paymentType     String?
+  status          String?
+  paymentMode     String?
+  accountBalance  Float?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  bankDetailsId   String?          @map("bankDetails")
+  bankDetails     BankDetails?     @relation("CompanyPaymentBankDetails", fields: [bankDetailsId], references: [id])
+  paidById        String?          @map("paidBy")
+  paidBy          EmployeeProfile? @relation("CompanyPaymentPaidByEmployee", fields: [paidById], references: [id])
+  branchId        String?          @map("branch")
+  branch          Branch?          @relation("BranchHasCompanyPayments", fields: [branchId], references: [id])
+  financerId      String?          @map("financer")
+  financer        Financer?        @relation("FinancerUsedForCompanyPayment", fields: [financerId], references: [id])
+  denominations   DenominationEntry[] @relation("CompanyPaymentHasDenominations")
+}
+
+model Branch {
+  id             String            @id @default(cuid())
+  name           String?
+  branchType     String?
+  gst            String?
+  senderId       String?
+  email          String?
+  url            String?
+  googleMapUrl   String?
+  noOfRamps      Int?
+  lat            Float?
+  lon            Float?
+  accountBalance Float             @default(0.0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  companyId      String?           @map("company")
+  company        Company?          @relation("CompanyHasManyBranch", fields: [companyId], references: [id])
+  addressId      String?           @map("address")
+  address        Address?          @relation("BranchHasAddress", fields: [addressId], references: [id])
+  createdById    String?           @map("createdBy")
+  createdBy      User?             @relation("BranchWasCreatedByUser", fields: [createdById], references: [id])
+
+  contacts                 BranchContacts[]           @relation("BranchHasManyBranchContacts")
+  manufacturer             Manufacturer[]             @relation("BanchHasManufacturers")
+  bankDetails              BankDetails[]              @relation("BranchHasBankDetails")
+  personInCharge           User[]                     @relation("BranchHasManyUser")
+  ramps                    Ramp[]                     @relation("BranchHasRamps")
+  companyPayments          CompanyPayment[]            @relation("BranchHasCompanyPayments")
+  idCreations              idCreation[]               @relation("IdCreationHasBranch")
+  sparesInventory          SparesInventory[]           @relation("SparesInventoryHasBranch")
+  adjustSpares             AdjustSparesInventory[]    @relation("AdjustSparesInventoryHasBranch")
+  vehicleInventory         VehicleInventory[]          @relation("VehicleInventoryHasBranch")
+  stockChecks              StockCheck[]               @relation("StockCheckHasBranch")
+  vehTransfersFrom         VehicleInventoryTransfer[] @relation("VehicleInventoryTransfersHasFromBranch")
+  vehTransfersTo           VehicleInventoryTransfer[] @relation("VehicleInventoryTransfersHasToBranch")
+  spareTransfersFrom       SpareInventoryTransfer[]   @relation("SpareInventoryTransfersHasFromBranch")
+  spareTransfersTo         SpareInventoryTransfer[]   @relation("SpareInventoryTransfersHasToBranch")
+  jobOrders                JobOrder[]                 @relation("JobOrderHasBranch")
+  materialIssues           MaterialIssue[]            @relation("MaterialIssueHasBranch")
+  materialParts            MaterialPartsIssue[]       @relation("MaterialsPartsHasBranch")
+  denomInventory           CompanyDenominationInventory[] @relation("BranchHasDenominationInventory")
+  denomEntries             DenominationEntry[]        @relation("BranchHasDenominationEntries")
+  estimates                Estimate[]                 @relation("EstimateHasBranch")
+  saleInvoices             SaleInvoice[]              @relation("SaleInvoiceHasBranch")
+  quotations               Quotation[]                @relation("QuotationHasBranch")
+  assignedQuotations       Quotation[]                @relation("QuotationAssignedBranch")
+  bookings                 Booking[]                  @relation("BookingHasBranch")
+  payments                 Payment[]                  @relation("BranchHasPayments")
+  ledgers                  Ledger[]                   @relation("LedgerHasBranch")
+  purchaseSpareInvoiceItems PurchaseSpareInvoiceItem[] @relation("PurchaseSpareInvoiceHasBranch")
+  saleSpareInvoices        SaleSpareInvoice[]         @relation("SaleSparesHasBranch")
+  employeeProfiles         EmployeeProfile[]          @relation("UserProfileHasBranch")
+  numberPlates             NumberPlate[]              @relation("BranchHasNumberPlate")
+  numberPlateTransfersFrom NumberPlateTransfer[]      @relation("FromBranchTransfers")
+  numberPlateTransfersTo   NumberPlateTransfer[]      @relation("ToBranchTransfers")
+  cashWithdrawals          CashWithdrawalHistory[]    @relation("BranchHasCashWithdrawals")
+  purchaseChallanBranch    VehiclePurchaseChallan[]   @relation("PurchaseChallanHasBranch")
+  customerSpareOrders      CustomerSpareOrder[]       @relation("CustomerSpareOrderHasBranch")
+  saleSpareInvoiceItems    SaleSpareInvoiceItem[]     @relation("SaleSpareInvoiceHasBranch")
+  vehicleInsurances        VehicleInsurance[]         @relation("VehicleInsuranceHasBranch")
+  branchAccess             UserBranchAccess[]         @relation("UserBranchAccessToBranch")
+}
+
+model BranchContacts {
+  id        String   @id @default(cuid())
+  phone     String?
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches  Branch[] @relation("BranchHasManyBranchContacts")
+}
+
+model Address {
+  id          String   @id @default(cuid())
+  line1       String?
+  line2       String?
+  line3       String?
+  locality    String?
+  pincode     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  districtId  String?  @map("district")
+  district    City?    @relation("AddressHasCity", fields: [districtId], references: [id])
+  stateId     String?  @map("state")
+  state       State?   @relation("AddressHasState", fields: [stateId], references: [id])
+  countryId   String?  @map("country")
+  country     Country? @relation("AddressHasCountry", fields: [countryId], references: [id])
+  createdById String?  @map("createdBy")
+  createdBy   User?    @relation("AddressWasCreatedByUser", fields: [createdById], references: [id])
+
+  employeeProfiles EmployeeProfile[] @relation("UserProfileHasAddress")
+  manufacturers    Manufacturer[]    @relation("ManufacturerHasAdddress")
+  financers        Financer[]        @relation("FinancerHasAddress")
+  insurers         Insurance[]       @relation("InsuranceHasAddress")
+  insurersShip     Insurance[]       @relation("InsuranceHasShippingAddress")
+  suppliers        Supplier[]        @relation("SupplierHasAddress")
+  suppliersShip    Supplier[]        @relation("SupplierHasShippingAddress")
+  subDealers       SubDealer[]       @relation("SubDealerHasAddress")
+  subDealersShip   SubDealer[]       @relation("SubDealerHasShippingAddress")
+  customers        Customer[]        @relation("CustomerHasAddress")
+  customersShip    Customer[]        @relation("CustomerHasShippingAddress")
+  branches         Branch[]          @relation("BranchHasAddress")
+}
+
+model BankDetails {
+  id             String            @id @default(cuid())
+  name           String?
+  accountName    String?
+  ifsc           String?
+  accountNumber  String?
+  accountType    AccType?
+  accountBalance Float             @default(0.0)
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  createdById    String?           @map("createdBy")
+  createdBy      User?             @relation("CompanyBankDetailsWasCreatedByUser", fields: [createdById], references: [id])
+  employeeProfiles EmployeeProfile[] @relation("UserProfileHasBankDetails")
+  branches       Branch[]          @relation("BranchHasBankDetails")
+  suppliers      Supplier[]        @relation("SupplierHasBankDetails")
+  subDealers     SubDealer[]       @relation("SubDealerHasBankDetails")
+  companyPayments CompanyPayment[] @relation("CompanyPaymentBankDetails")
+  payments       Payment[]         @relation("BankHasPayments")
+}
+
+model Financer {
+  id              String            @id @default(cuid())
+  name            String            @unique
+  dealerType      DealerType?
+  GSTIN           String?
+  status          ActStatus?
+  email           String?
+  logo            String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  addressId       String?           @map("address")
+  address         Address?          @relation("FinancerHasAddress", fields: [addressId], references: [id])
+  createdById     String?           @map("createdBy")
+  createdBy       User?             @relation("FinancerWasCreatedByUser", fields: [createdById], references: [id])
+  contact         FinancerContact[]  @relation("FinancerHasFinancerContact")
+  companyPayments  CompanyPayment[]   @relation("FinancerUsedForCompanyPayment")
+  loans            Loan[]             @relation("BookingHasFinancer")
+  quotationVehicles QuotationVehicle[] @relation("QuotationVehicleHasFinancer")
+}
+
+model FinancerContact {
+  id          String    @id @default(cuid())
+  name        String?
+  designation String?
+  number      String?
+  whatsapp    Boolean?
+  valid       Boolean?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  financerId  String?   @map("financer")
+  financer    Financer? @relation("FinancerHasFinancerContact", fields: [financerId], references: [id])
+  createdById String?   @map("createdBy")
+  createdBy   User?     @relation("FinancerContactWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model Insurance {
+  id               String             @id @default(cuid())
+  name             String?             @unique
+  dealerType       DealerType?
+  GSTIN            String?
+  status           ActStatus?
+  email            String?
+  logo             String?
+  cashless         String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  addressId        String?            @map("address")
+  address          Address?           @relation("InsuranceHasAddress", fields: [addressId], references: [id])
+  shippingAddressId String?           @map("shippingAddress")
+  shippingAddress   Address?           @relation("InsuranceHasShippingAddress", fields: [shippingAddressId], references: [id])
+  createdById      String?            @map("createdBy")
+  createdBy        User?              @relation("InsuranceWasCreatedByUser", fields: [createdById], references: [id])
+  contact          InsuranceContact[]  @relation("InsuranceHasInsuranceContact")
+  estimates         Estimate[]          @relation("EstimateHasInsurer")
+  vehicleInsurances VehicleInsurance[]  @relation("VehicleInsuranceHasInsurance")
+}
+
+model InsuranceContact {
+  id          String     @id @default(cuid())
+  name        String?
+  designation String?
+  number      String?
+  whatsapp    Boolean?
+  valid       Boolean?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  insuranceId String?    @map("insurance")
+  insurance   Insurance? @relation("InsuranceHasInsuranceContact", fields: [insuranceId], references: [id])
+  createdById String?    @map("createdBy")
+  createdBy   User?      @relation("InsuranceContactWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model Supplier {
+  id                String             @id @default(cuid())
+  name              String?
+  dealerType        DealerType?
+  GSTIN             String?
+  status            ActStatus?
+  email             String?
+  remarks           String?
+  // REMINDER: Migrate supplierType from Supplier_supplierType (Option 2)
+  supplierType      String[]
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  addressId         String?            @map("address")
+  address           Address?           @relation("SupplierHasAddress", fields: [addressId], references: [id])
+  shippingAddressId String?            @map("shippingAddress")
+  shippingAddress   Address?           @relation("SupplierHasShippingAddress", fields: [shippingAddressId], references: [id])
+  createdById       String?            @map("createdBy")
+  createdBy         User?              @relation("SupplierWasCreatedByUser", fields: [createdById], references: [id])
+  contact           SupplierContact[]  @relation("SupplierHasSupplierContact")
+  bank              BankDetails[]      @relation("SupplierHasBankDetails")
+  sparePartReceipts      SparePartReceipt[]        @relation("SparePartReceiptHasSupplier")
+  purchaseSpareInvoices  PurchaseSpareInvoice[]    @relation("LinkedToSupplier")
+  payments               Payment[]                 @relation("SupplierReceivedPayment")
+  purchaseChallan        VehiclePurchaseChallan[]  @relation("PurchaseChallanHasSupplier")
+}
+
+model SupplierContact {
+  id          String   @id @default(cuid())
+  name        String?
+  designation String?
+  number      String?
+  whatsapp    Boolean?
+  valid       Boolean?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  suppliers   Supplier[] @relation("SupplierHasSupplierContact")
+  createdById String?    @map("createdBy")
+  createdBy   User?      @relation("SupplierContactWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model SubDealer {
+  id                String             @id @default(cuid())
+  name              String?
+  dealerType        DealerType?
+  GSTIN             String?
+  status            ActStatus?
+  email             String?
+  remarks           String?
+  subDealerType     String?
+  discountType      String?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  addressId         String?            @map("address")
+  address           Address?           @relation("SubDealerHasAddress", fields: [addressId], references: [id])
+  shippingAddressId String?            @map("shippingAddress")
+  shippingAddress   Address?           @relation("SubDealerHasShippingAddress", fields: [shippingAddressId], references: [id])
+  createdById       String?            @map("createdBy")
+  createdBy         User?              @relation("SubDealerWasCreatedByUser", fields: [createdById], references: [id])
+  contact           SubDealerContact[] @relation("SubDealerHasSupplierContact")
+  bank              BankDetails[]      @relation("SubDealerHasBankDetails")
+}
+
+model SubDealerContact {
+  id          String     @id @default(cuid())
+  name        String?
+  designation String?
+  number      String?
+  whatsapp    Boolean?
+  valid       Boolean?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  subDealers  SubDealer[] @relation("SubDealerHasSupplierContact")
+  createdById String?
+  createdBy   User?       @relation("SubDealerContactWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model File {
+  id        String   @id @default(cuid())
+  name      String?
+  entity    String?
+  url       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById       String?
+  createdBy         User?              @relation("FileWasCreatedBy", fields: [createdById], references: [id])
+  employeeDocuments EmployeeDocument[] @relation("UserDocumentHasFile")
+  vehicleMasters    VehicleMaster[]    @relation("VehicleMasterHasFile")
+  vehicleInsurances VehicleInsurance[] @relation("VehicleInsuranceHasFiles")
+}
+
+model Image {
+  id        String   @id @default(cuid())
+  color     String?
+  code      String?
+  url       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById       String?
+  createdBy         User?    @relation("ImageWasCreatedBy", fields: [createdById], references: [id])
+  vehicleMasters    VehicleMaster[]    @relation("VehicleMasterHasImage")
+  vehicleInventory  VehicleInventory[] @relation("VehicleInventoryHasColor")
+  quotationVehicles QuotationVehicle[] @relation("QuotationVehicleHasColor")
+  bookings          Booking[]          @relation("BookingHasColors")
+  vehicles          Vehicle[]          @relation("SoldVehicleHasColors")
+  purchasedVehicles PurchasedVehicleDetail[] @relation("VehicleDetailsHasColor")
+}
+
+model FileManagement {
+  id        String   @id @default(cuid())
+  name      String?
+  module    String?
+  url       String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?    @relation("FileManagementWasCreatedBy", fields: [createdById], references: [id])
+}
+
+model Hsn {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  igst        Float?
+  cgst        Float?
+  sgst        Float?
+  cess        Float?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById              String?
+  createdBy                User?                    @relation("HsnWasCreatedBy", fields: [createdById], references: [id])
+  vehicleMasters           VehicleMaster[]          @relation("VehicleMasterHasHsn")
+  partsMasters             PartsMaster[]            @relation("VehicleMasterHasHSN")
+  estimateItems            EstimateItem[]           @relation("EstimateItemHasHSN")
+  purchaseSpareInvoiceItems PurchaseSpareInvoiceItem[] @relation("PurchaseSpareInvoiceItemHasHSN")
+  saleSpareInvoiceItems    SaleSpareInvoiceItem[]   @relation("SaleSpareInvoiceItemHasHSN")
+}
+
+model Sac {
+  id          String   @id @default(cuid())
+  code        String   @unique
+  igst        Float?
+  cgst        Float?
+  sgst        Float?
+  cess        Float?
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  createdById String?
+  createdBy   User?     @relation("SacWasCreatedBy", fields: [createdById], references: [id])
+  jobCodes      JobCode[]      @relation("VehicleMasterHasSAC")
+  estimateItems EstimateItem[] @relation("EstimateItemHasSAC")
+  saleSpareItems SaleSpareInvoiceItem[] @relation("SaleSpareInvoiceItemHasSAC")
+}
+
+model idCreation {
+  id            String   @id @default(cuid())
+  subModule     String?
+  text          String?
+  startCount    String?
+  count         String?
+  scope         String?
+  resetAnnually Boolean?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branchId      String?
+  branch        Branch?  @relation("IdCreationHasBranch", fields: [branchId], references: [id])
+  createdById   String?
+  createdBy     User?    @relation("CreationWasCreatedBy", fields: [createdById], references: [id])
+}
+
+model VehicleMaster {
+  id                   String          @id @default(cuid())
+  modelName            String
+  modelCode           String?
+  category            VehicleCategory?
+  vehicleStatus       Status?
+  warrentyPeriodMonths Int?
+  warrentyPeriodKm    Int?
+  noOfServices        Int?
+  serviceIntervalKm   Int?
+  serviceIntervalTime Int?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  manufacturerId      String?
+  manufacturer        Manufacturer?   @relation("VehicleMasterHasManufacturer", fields: [manufacturerId], references: [id])
+  hsnId               String?
+  hsn                 Hsn?            @relation("VehicleMasterHasHsn", fields: [hsnId], references: [id])
+  createdById         String?
+  createdBy           User?            @relation("VehicleMasterWasCreatedBy", fields: [createdById], references: [id])
+
+  files               File[]             @relation("VehicleMasterHasFile")
+  images              Image[]            @relation("VehicleMasterHasImage")
+  services            Service[]          @relation("VehicleMasterHasService")
+  prices              VehiclePrice[]     @relation("VehiclePriceBelongsToVehicleMaster")
+  multiVehicles       MultiVehicle[]     @relation("MultiVehicleHasVehcile")
+  jobCodePrices       JobCodePrice[]     @relation("VehicleModelHasVehicleMaster")
+  vehicleInventory    VehicleInventory[] @relation("VehicleInventoryHasVehicleMaster")
+  pmcs                PMC[]              @relation("PMChasManyVehicles")
+  quotationVehicles   QuotationVehicle[] @relation("QuotationVehicleHasVehicle")
+  bookings            Booking[]          @relation("BookingHasVehicleMaster")
+  vehicles            Vehicle[]          @relation("SoldVehicleHaveVehicleMaster")
+  purchasedVehicles   PurchasedVehicleDetail[] @relation("VehicleDetailHasVehicleMaster")
+}
+
+model Service {
+  id              String       @id @default(cuid())
+  serviceNo       Int?
+  serviceType     ServiceType?
+  serviceDays     Int?
+  serviceKm       Int?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  createdById     String?
+  createdBy       User?        @relation("ServiceWasCreatedBy", fields: [createdById], references: [id])
+  vehicleMasters  VehicleMaster[] @relation("VehicleMasterHasService")
+}
+
+model VehicleColor {
+  id              String        @id @default(cuid())
+  colorId         String
+  colorName       String?
+  vehiclePriceId  String?
+  vehiclePrice    VehiclePrice? @relation("VehiclePriceHasColors", fields: [vehiclePriceId], references: [id])
+}
+
+model VehiclePrice {
+  id                 String         @id @default(cuid())
+  showroomPrice      Float
+  roadTax            Float?
+  tcs                Float?
+  otherCharges       Float?
+  discount           Float?
+  rto                Float?
+  accessoriesRemarks String?
+  registrationFee    Float?
+  handlingCharges    Float?
+  rsa                Float?
+  amc                Float?
+  warrantyPrice      Float?
+  insurance1plus5    Float?
+  insurance5plus5    Float?
+  insurance1plus5ZD  Float?
+  insurance5plus5ZD  Float?
+  priceValidFrom     DateTime?
+  priceValidTill     DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  vehicleModelId     String?        @map("vehicleModel")
+  vehicleModel       VehicleMaster? @relation("VehiclePriceBelongsToVehicleMaster", fields: [vehicleModelId], references: [id])
+  createdById        String?        @map("createdBy")
+  createdBy          User?          @relation("VehiclePriceWasCreatedBy", fields: [createdById], references: [id])
+  colors             VehicleColor[] @relation("VehiclePriceHasColors")
+}
+
+model Manufacturer {
+  id                  String      @id @default(cuid())
+  name                String      @unique
+  code                String?
+  logo                String?
+  gst                 String?
+  email               String?
+  vehicleManufacturer Boolean?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  addressId           String?
+  address             Address?    @relation("ManufacturerHasAdddress", fields: [addressId], references: [id])
+  createdById         String?
+  createdBy           User?       @relation("ManufacturerWasCreatedBy", fields: [createdById], references: [id])
+  branches         Branch[]       @relation("BanchHasManufacturers")
+  vehicleMasters   VehicleMaster[] @relation("VehicleMasterHasManufacturer")
+  partsMasters     PartsMaster[]  @relation("PartsMasterHasManufacturer")
+  vehicles         Vehicle[]      @relation("VehicleHasManufacturer")
+  frameNumbers     FrameNumber[]  @relation("FrameNumberHasManufacturer")
+}
+
+model PartsMaster {
+  id                  String          @id @default(cuid())
+  partNumber          String
+  partName            String?
+  displayName         String?
+  oldPartNum          String?
+  category            String?
+  largeCategoryName   String?
+  showInConsumer      Boolean?
+  showInAutoCloud     Boolean?
+  // REMINDER: Migrate url from PartsMaster_url (Option 2)
+  url                 String[]
+  color               String?
+  moq                 Int?
+  mrp                 Float?
+  ndp                 Float?
+  wefDate             DateTime?
+  partStatus          Status?
+  remarks             String?
+  size                String?
+  mainPartNumber      String?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  hsnId               String?         @map("hsn")
+  hsn                 Hsn?            @relation("VehicleMasterHasHSN", fields: [hsnId], references: [id])
+  manufacturerId      String?         @map("manufacturer")
+  manufacturer        Manufacturer?   @relation("PartsMasterHasManufacturer", fields: [manufacturerId], references: [id])
+  createdById         String?         @map("createdBy")
+  createdBy           User?           @relation("PartsMasterWasCreatedBy", fields: [createdById], references: [id])
+
+  SparesInventory     SparesInventory?   @relation("SparesInventoryHasParts")
+  vehicleSuit         MultiVehicle[]     @relation("PartsMasterHasMultiVehicle")
+  adjustSpares        AdjustSparesInventory[] @relation("AdjustSparesInventoryHasParts")
+  transactions        Transactions[]     @relation("TransactionsRelatedToPartsMaster")
+  stockChecks         StockCheck[]       @relation("StockCheckHasPartNo")
+  sparePartOrders     SparePartOrder[]   @relation("SparePartOrderHasParts")
+  suppliedOrders      SparePartOrder[]   @relation("SuppliedPartNoToPartsMaster")
+  supersededOrders    SparePartOrder[]   @relation("SupersededPartNoToPartsMaster")
+  receipts            SparePartReceipt[] @relation("SparePartReceiptHasParts")
+  pmcItems            PmcPartItem[]      @relation("PmcPartItemToPartsMaster")
+  estimateItems       EstimateItem[]     @relation("EstimateItemToPartsMaster")
+  materialParts       MaterialPartsIssue[] @relation("MaterialsPartsHasParts")
+  purchaseSpareItems  PurchaseSpareInvoiceItem[] @relation("PartNoRelatedToPartsMaster")
+  saleSpareItems      SaleSpareInvoiceItem[] @relation("SalesPartNoRelatedToPartsMaster")
+  accessories         AccessoriesWithDiscount[] @relation("AccessoriesWithDiscountHasParts")
+  customerSpareItems  CustomerSpareOrderItem[] @relation("CustomerSparePartNoRelatedToPartsMaster")
+}
+
+model MultiVehicle {
+  id          String         @id @default(cuid())
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  vehicleId   String?
+  vehicle     VehicleMaster? @relation("MultiVehicleHasVehcile", fields: [vehicleId], references: [id])
+  partsMasters  PartsMaster[] @relation("PartsMasterHasMultiVehicle")
+  createdById String?
+  createdBy   User?          @relation("MultiVehicleWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model SparesInventory {
+  id                String          @id @default(cuid())
+  accQuantity       Int?
+  phyQuantity       Int?
+  allocatedQuantity Int             @default(0)
+  binNum            String?
+  minStock          Int?
+  maxStock          Int?
+  reorderLevel      Int?
+  reorderQuantity   Int?
+  createdAt         DateTime        @default(now())
+
+  partId            String?         @unique @map("partNo")
+  partNo            PartsMaster?    @relation("SparesInventoryHasParts", fields: [partId], references: [id])
+  branchId          String?         @map("branch")
+  branch            Branch?         @relation("SparesInventoryHasBranch", fields: [branchId], references: [id])
+  transfers         SpareInventoryTransfer[] @relation("SpareInventoryTransfersHasVehicleInventory")
+}
+
+model AdjustSparesInventory {
+  id                String       @id @default(cuid())
+  availableQuantity Int?
+  newQuantity       Int?
+  reason            String?
+  createdAt         DateTime     @default(now())
+
+  partId            String?      @map("partNo")
+  partNo            PartsMaster? @relation("AdjustSparesInventoryHasParts", fields: [partId], references: [id])
+  branchId          String?      @map("branch")
+  branch            Branch?      @relation("AdjustSparesInventoryHasBranch", fields: [branchId], references: [id])
+  createdById       String?      @map("adjustByUser")
+  adjustByUser      User?        @relation("AdjustSparesInventoryHasUser", fields: [createdById], references: [id])
+}
+
+model Transactions {
+  id               String                @id @default(cuid())
+  type             String?
+  Quantity         Int?
+  color            String                @default("red")
+  status           String?
+  createdAt        DateTime              @default(now())
+
+  partId           String?               @map("Part")
+  Part             PartsMaster?          @relation("TransactionsRelatedToPartsMaster", fields: [partId], references: [id])
+  sparesPurchaseId String?               @map("sparesPurchase")
+  sparesPurchase   PurchaseSpareInvoice? @relation("TransactionsHavePurchasedSpares", fields: [sparesPurchaseId], references: [id])
+  sparesSaleId     String?               @map("sparesSale")
+  sparesSale       SaleSpareInvoice?     @relation("TransactionsHaveSaledSpares", fields: [sparesSaleId], references: [id])
+  sparesMaterialId String?               @map("sparesMaterialSale")
+  sparesMaterialSale MaterialIssue?      @relation("TransactionsHaveSaledMaterialSpares", fields: [sparesMaterialId], references: [id])
+}
+
+model VehicleInventory {
+  id                  String               @id @default(cuid())
+  chassisNo           String?
+  engineNo            String?
+  keyNo               String?
+  warrantyBookNo      String?
+  batteryNo           String?
+  manMonthYear        String?
+  Status              String?
+  serviceCouponNumber String?
+  dealerName          String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt @default(now())
+
+  vehicleId           String?
+  vehicleDetail       VehicleMaster?       @relation("VehicleInventoryHasVehicleMaster", fields: [vehicleId], references: [id])
+  branchId            String?
+  branch              Branch?              @relation("VehicleInventoryHasBranch", fields: [branchId], references: [id])
+  colorId             String?
+  color               Image?               @relation("VehicleInventoryHasColor", fields: [colorId], references: [id])
+  vehiclePurchaseId   String?
+  vehiclePurchase     VehiclePurchaseInvoice? @relation("VehicleTransactionsHavePurchasedSpares", fields: [vehiclePurchaseId], references: [id])
+  transfers           VehicleInventoryTransfer[] @relation("VehicleInventoryTransfersHasVehicleInventory")
+}
+
+model StockCheck {
+  id          String       @id @default(cuid())
+  phyQuantity Int?
+  binNum      String?
+  status      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  partId      String?      @map("partNo")
+  partNo      PartsMaster? @relation("StockCheckHasPartNo", fields: [partId], references: [id])
+  createdById String?      @map("createdBy")
+  createdBy   User?        @relation("StockCheckHasCreatedByUser", fields: [createdById], references: [id])
+  branchId    String?      @map("branch")
+  branch      Branch?      @relation("StockCheckHasBranch", fields: [branchId], references: [id])
+}
+
+model VehicleInventoryTransfer {
+  id                 String           @id @default(cuid())
+  chassisNo          String?
+  modelName          String?
+  modelCode          String?
+  category           VehicleCategory?
+  colorId            String?
+  colorCode          String?
+  createdAt          DateTime         @default(now())
+
+  fromBranchId       String?
+  fromBranch         Branch?          @relation("VehicleInventoryTransfersHasFromBranch", fields: [fromBranchId], references: [id])
+  toBranchId         String?
+  toBranch           Branch?          @relation("VehicleInventoryTransfersHasToBranch", fields: [toBranchId], references: [id])
+  vehicleInventoryId String?
+  vehicleInventory   VehicleInventory? @relation("VehicleInventoryTransfersHasVehicleInventory", fields: [vehicleInventoryId], references: [id])
+}
+
+model SpareInventoryTransfer {
+  id               String           @id @default(cuid())
+  quantity         Int?
+  createdAt        DateTime         @default(now())
+
+  fromBranchId     String?
+  fromBranch       Branch?          @relation("SpareInventoryTransfersHasFromBranch", fields: [fromBranchId], references: [id])
+  toBranchId       String?
+  toBranch         Branch?          @relation("SpareInventoryTransfersHasToBranch", fields: [toBranchId], references: [id])
+  spareInventoryId String?
+  spareInventory   SparesInventory? @relation("SpareInventoryTransfersHasVehicleInventory", fields: [spareInventoryId], references: [id])
+}
+
+model SparePartOrder {
+  id                 String              @id @default(cuid())
+  orderDate          DateTime
+  orderedPartName    String?
+  orderedQuantity    Int?
+  suppliedPartName   String?
+  suppliedQuantity   Int?
+  supersededPartName String?
+  iymOrderNo         String?
+  iymOrderDate       DateTime?
+  status             String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  orderedPartId      String?             @map("orderedPartNo")
+  orderedPartNo      PartsMaster?        @relation("SparePartOrderHasParts", fields: [orderedPartId], references: [id])
+  suppliedPartId     String?             @map("suppliedPartNo")
+  suppliedPartNo     PartsMaster?        @relation("SuppliedPartNoToPartsMaster", fields: [suppliedPartId], references: [id])
+  supersededPartId   String?             @map("supersededPartNo")
+  supersededPartNo   PartsMaster?        @relation("SupersededPartNoToPartsMaster", fields: [supersededPartId], references: [id])
+  customerSpareOrderId String?           @map("customerSpareOrder")
+  customerSpareOrder CustomerSpareOrder? @relation("SparePartOrderHasCustomerOrder", fields: [customerSpareOrderId], references: [id])
+  receipts           SparePartReceipt[]  @relation("SparePartOrderHasReceipts")
+}
+
+model SparePartReceipt {
+  id               String          @id @default(cuid())
+  receiveDate      DateTime
+  receivedPartName String?
+  receivedQuantity Int?
+  billNo           String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  receivedPartId   String?
+  receivedPartNo   PartsMaster?    @relation("SparePartReceiptHasParts", fields: [receivedPartId], references: [id])
+  supplierId       String?
+  supplier         Supplier?       @relation("SparePartReceiptHasSupplier", fields: [supplierId], references: [id])
+  sparePartOrderId String?
+  sparePartOrder   SparePartOrder? @relation("SparePartOrderHasReceipts", fields: [sparePartOrderId], references: [id])
+}
+
+model JobCode {
+  id                  String               @id @default(cuid())
+  code                String               @unique
+  description         String
+  group               String?
+  consumable          Boolean?
+  marginType          String?
+  marginOnOutsideWork String?
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  sacId               String?              @map("sac")
+  sac                 Sac?                 @relation("VehicleMasterHasSAC", fields: [sacId], references: [id])
+  createdById         String?              @map("createdBy")
+  createdBy           User?                @relation("JobCodeWasCreatedBy", fields: [createdById], references: [id])
+  vehicleModel        JobCodePrice[]       @relation("JobCodeHasVehicleModel")
+  complaints          JobVehicleComplaint[] @relation("ComplaintHasJobCode")
+  estimateItems       EstimateItem[]       @relation("EstimateItemHasJobCode")
+  pmcItems            PmcJobCodeItem[]     @relation("PmcJobCodeItemToJobCode")
+  saleSpareItems      SaleSpareInvoiceItem[] @relation("SaleSpareInvoiceItemHasJobCode")
+}
+
+model JobCodePrice {
+  id        String         @id @default(cuid())
+  price     Float?
+  
+  vehicleId String?        @map("vehicle")
+  vehicle   VehicleMaster? @relation("VehicleModelHasVehicleMaster", fields: [vehicleId], references: [id])
+  jobCodeId String?        @map("jobCode")
+  jobCode   JobCode?       @relation("JobCodeHasVehicleModel", fields: [jobCodeId], references: [id])
+}
+
+model JobOrder {
+  id                  String                 @id @default(cuid())
+  jobNo               String                 @unique
+  dateTime            DateTime?
+  customerPhone       String?
+  kms                 Float?
+  serviceType         String?
+  serviceNo           String?
+  couponNo            String?
+  jobStatus           String?
+  jobOrderPdf         String?
+  fuelLevel           Float?
+  customerFeedback    String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  vehicleId           String?                @map("vehicle")
+  vehicle             Vehicle?               @relation("SoldVehicleHaveJobOrder", fields: [vehicleId], references: [id])
+  customerId          String?                @map("customer")
+  customer            Customer?              @relation("JobOrderHasCustomer", fields: [customerId], references: [id])
+  mechanicId          String?                @map("mechanic")
+  mechanic            User?                  @relation("JobOrderHasMechanic", fields: [mechanicId], references: [id])
+  branchId            String?                @map("branch")
+  branch              Branch?                @relation("JobOrderHasBranch", fields: [branchId], references: [id])
+  createdById         String?                @map("createdBy")
+  createdBy           User?                  @relation("JobOrderWasCreatedBy", fields: [createdById], references: [id])
+  
+  rampId              String?                @map("ramp")
+  ramp                Ramp?                  @relation("RampHasJob", fields: [rampId], references: [id])
+  serviceReminder     ServiceReminder?       @relation("ServiceReminderHasJobOrder")
+  vehicleImage        JobVehicleImage?       @relation("JobOrderHasVehicleImage")
+  parts               JobVehicleParts?       @relation("JobVehicleHasParts")
+  complaint           JobVehicleComplaint[]  @relation("JobOrderHasComplaints")
+  accidentalDocuments AccidentalDocument[]   @relation("JobOrderHasAccidentalDocs")
+  logs                JobOrderLog[]          @relation("JobOrderLogHasJobOrder")
+  estimates           Estimate[]             @relation("EstimateHasJobOrder")
+  materialIssues      MaterialIssue[]        @relation("MaterialIssueHasJobOrder")
+  invoices            JobInvoice[]           @relation("JobInvoiceHaveJobOrder")
+  saleSpareInvoices   SaleSpareInvoice[]     @relation("SaleSparesHasJobOrder")
+  customerSpareOrders CustomerSpareOrder[]   @relation("CustomerSpareOrderHasJobOrder")
+}
+
+model Ramp {
+  id          String   @id @default(cuid())
+  rampNo      Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branchId    String?
+  branch      Branch?  @relation("BranchHasRamps", fields: [branchId], references: [id])
+  jobOrders   JobOrder[] @relation("RampHasJob")
+  mechanicId  String?
+  mechanic    User?    @relation("RampHasMechanic", fields: [mechanicId], references: [id])
+}
+
+model AccidentalDocument {
+  id         String    @id @default(cuid())
+  url        String?
+  jobOrderId String?   @map("jobOrder")
+  jobOrder   JobOrder? @relation("JobOrderHasAccidentalDocs", fields: [jobOrderId], references: [id])
+}
+
+model JobOrderLog {
+  id         String    @id @default(cuid())
+  event      String?
+  data       String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  jobOrderId String?
+  jobOrder   JobOrder? @relation("JobOrderLogHasJobOrder", fields: [jobOrderId], references: [id])
+}
+
+model Estimate {
+  id                  String         @id @default(cuid())
+  estimateNo          String?
+  dateTime            DateTime?
+  estimateStatus      String?
+  discountLevel       String?
+  discountType        String?
+  discountPercent     Float?
+  discountRate        Float?
+  cgstAmount          Float?
+  sgstAmount          Float?
+  igstAmount          Float?
+  totalDiscount       Float?
+  labourCharge        Float?
+  consumableCharge    Float?
+  partCharge          Float?
+  estTotalAmount      Float?
+  estimatePdf         String?
+  serviceType         String?
+  claimType           String?
+  claimStatus         Boolean?
+  survivorContact     String?
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  jobOrderId          String?        @map("jobOrder")
+  jobOrder            JobOrder?      @relation("EstimateHasJobOrder", fields: [jobOrderId], references: [id])
+  insurerId           String?        @map("insurer")
+  insurer             Insurance?     @relation("EstimateHasInsurer", fields: [insurerId], references: [id])
+  survivorId          String?        @map("survivor")
+  survivor            Customer?      @relation("EstimateHasSurvivor", fields: [survivorId], references: [id])
+  branchId            String?        @map("branch")
+  branch              Branch?        @relation("EstimateHasBranch", fields: [branchId], references: [id])
+  createdById         String?        @map("createdBy")
+  createdBy           User?          @relation("EstimateWasCreatedBy", fields: [createdById], references: [id])
+  estimateItemInvoice EstimateItem[] @relation("ItemRelatedToEstimate")
+}
+
+model EstimateItem {
+  id              String       @id @default(cuid())
+  quantity        Float?
+  unitRate        Float?
+  igst            Float?
+  cgst            Float?
+  sgst            Float?
+  igstAmount      Float?
+  cgstAmount      Float?
+  sgstAmount      Float?
+  discountAmount  Float?
+  discountPercent Float?
+  status          String?
+  imageUrl        String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  jobCodeId       String?      @map("jobCode")
+  jobCode         JobCode?     @relation("EstimateItemHasJobCode", fields: [jobCodeId], references: [id])
+  partId          String?      @map("partNumber")
+  partNumber      PartsMaster? @relation("EstimateItemToPartsMaster", fields: [partId], references: [id])
+  hsnId           String?      @map("hsn")
+  hsn             Hsn?         @relation("EstimateItemHasHSN", fields: [hsnId], references: [id])
+  sacId           String?      @map("sac")
+  sac             Sac?         @relation("EstimateItemHasSAC", fields: [sacId], references: [id])
+  estimateId      String?      @map("estimate")
+  estimate        Estimate?    @relation("ItemRelatedToEstimate", fields: [estimateId], references: [id])
+  createdById     String?      @map("createdBy")
+  createdBy       User?        @relation("EstimateItemWasCreatedBy", fields: [createdById], references: [id])
+}
+
+model JobVehicleParts {
+  id          String    @id @default(cuid())
+  MirrorRH    Boolean?
+  MirrorLH    Boolean?
+  Toolkit     Boolean?
+  FirstAdKit  Boolean?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  jobOrderId  String?   @unique @map("jobOrder")
+  jobOrder    JobOrder? @relation("JobVehicleHasParts", fields: [jobOrderId], references: [id])
+  createdById String?   @map("createdBy")
+  createdBy   User?     @relation("JobVehiclePartsWasCreatedBy", fields: [createdById], references: [id])
+  deletedById String?   @map("deletedBy")
+  deletedBy   User?     @relation("JobVehiclePartsWasDeletedBy", fields: [deletedById], references: [id])
+}
+
+model JobVehicleImage {
+  id               String            @id @default(cuid())
+  frontView        String?
+  rhsView          String?
+  lhsView          String?
+  rearView         String?
+  topView          String?
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  jobOrderId       String?           @unique @map("jobOrder")
+  jobOrder         JobOrder?         @relation("JobOrderHasVehicleImage", fields: [jobOrderId], references: [id])
+  createdById      String?           @map("createdBy")
+  createdBy        User?             @relation("JobVehicleImageWasCreatedBy", fields: [createdById], references: [id])
+  additionalImages AdditionalImage[] @relation("VehicleImageHasAdditionalImages")
+}
+
+model AdditionalImage {
+  id             String           @id @default(cuid())
+  url            String?
+  vehicleImageId String?          @map("vehicleImage")
+  vehicleImage   JobVehicleImage? @relation("VehicleImageHasAdditionalImages", fields: [vehicleImageId], references: [id])
+}
+
+model JobVehicleComplaint {
+  id          String     @id @default(cuid())
+  complaint   String?
+  jobStatus   JobStatus?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  jobCodeId   String?    @map("jobCode")
+  jobCode     JobCode?   @relation("ComplaintHasJobCode", fields: [jobCodeId], references: [id])
+  jobOrderId  String?    @map("jobOrder")
+  jobOrder    JobOrder?  @relation("JobOrderHasComplaints", fields: [jobOrderId], references: [id])
+  createdById String?    @map("createdBy")
+  createdBy   User?      @relation("ComplaintWasCreatedBy", fields: [createdById], references: [id])
+}
+
+model MaterialIssue {
+  id          String               @id @default(cuid())
+  issueDate   DateTime?
+  netAmount   Float?
+  slipNumber  Int?
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  jobOrderId  String?   @map("job")
+  job         JobOrder?            @relation("MaterialIssueHasJobOrder", fields: [jobOrderId], references: [id])
+  mechanicId  String?   @map("mechanic")
+  mechanic    User?                @relation("MaterialIssueHasMechanic", fields: [mechanicId], references: [id])
+  branchId    String?   @map("branch")
+  branch      Branch?              @relation("MaterialIssueHasBranch", fields: [branchId], references: [id])
+  createdById String?   @map("createdBy")
+  createdBy   User?                @relation("MaterialIssueWasCreatedBy", fields: [createdById], references: [id])
+  parts       MaterialPartsIssue[] @relation("MaterialIssueRelatedToPartsMaster")
+  invoices    JobInvoice[]         @relation("JobInvoiceHaveMaterialIssue")
+  transactions Transactions[]      @relation("TransactionsHaveSaledMaterialSpares")
+}
+
+model MaterialPartsIssue {
+  id              String         @id @default(cuid())
+  partName        String?
+  issueType       String?
+  issueDate       DateTime?
+  quantity        Int?
+  mrp             Float?
+  slipNumber      Int?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  partId          String?        @map("part")
+  part            PartsMaster?   @relation("MaterialsPartsHasParts", fields: [partId], references: [id])
+  mechanicId      String?        @map("mechanic")
+  mechanic        User?          @relation("MaterialPartsIssueHasMechanic", fields: [mechanicId], references: [id])
+  branchId        String?        @map("branch")
+  branch          Branch?        @relation("MaterialsPartsHasBranch", fields: [branchId], references: [id])
+  materialIssueId String?        @map("materialIssue")
+  materialIssue   MaterialIssue? @relation("MaterialIssueRelatedToPartsMaster", fields: [materialIssueId], references: [id])
+}
+
+model JobInvoice {
+  id          String          @id @default(cuid())
+  invoiceNo   String?
+  total       Float?
+  roundOff    Float?
+  paymentMode String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  jobOrderId  String?
+  jobOrder    JobOrder?       @relation("JobInvoiceHaveJobOrder", fields: [jobOrderId], references: [id])
+  createdById String?
+  createdBy   User?           @relation("JobInvoiceWasCreatedBy", fields: [createdById], references: [id])
+  parts       MaterialIssue[] @relation("JobInvoiceHaveMaterialIssue")
+}
+
+model PMC {
+  id              String           @id @default(cuid())
+  serviceNo       Int?
+  serviceType     ServiceType?
+  serviceKm       Int?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  vehicleMasters  VehicleMaster[]  @relation("PMChasManyVehicles")
+  partsConsumable PmcPartItem[]    @relation("PMChasManyPmcParts")
+  jobCodes        PmcJobCodeItem[] @relation("PMChasManyPmcJobCodes")
+}
+
+model PmcPartItem {
+  id            String       @id @default(cuid())
+  quantity      Float?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  partsMasterId String?      @map("partNumber")
+  partNumber    PartsMaster? @relation("PmcPartItemToPartsMaster", fields: [partsMasterId], references: [id])
+  pmcId         String?      @map("pmc")
+  pmc           PMC?         @relation("PMChasManyPmcParts", fields: [pmcId], references: [id])
+}
+
+model PmcJobCodeItem {
+  id        String   @id @default(cuid())
+  quantity  Float?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobCodeId String?  @map("jobCode")
+  jobCode   JobCode? @relation("PmcJobCodeItemToJobCode", fields: [jobCodeId], references: [id])
+  pmcId     String?  @map("pmc")
+  pmc       PMC?     @relation("PMChasManyPmcJobCodes", fields: [pmcId], references: [id])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  module          String?
+  moduleId        String?
+  receiptId       String?       @unique
+  billAmount      Float?
+  collectedAmount Float?
+  changeReturned  Float?
+  method          String?
+  status          PaymentStatus?
+  mpr             Float?
+  dateOfPayment   DateTime?
+  accountBalance  Float?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  paidById          String?        @map("paidBy")
+  paidBy            Customer?        @relation("CustomerMadePayment", fields: [paidById], references: [id])
+  collectedById     String?        @map("collectedBy")
+  collectedBy       EmployeeProfile? @relation("CashierCollectedPayment", fields: [collectedById], references: [id])
+  branchId          String?        @map("branch")
+  branch            Branch?          @relation("BranchHasPayments", fields: [branchId], references: [id])
+  bookingId         String?        @map("booking")
+  booking           Booking?         @relation("BookingHasManyPayment", fields: [bookingId], references: [id])
+  supplierId        String?        @map("supplier")
+  supplier          Supplier?        @relation("SupplierReceivedPayment", fields: [supplierId], references: [id])
+  bankId            String?        @map("bank")
+  bank              BankDetails?     @relation("BankHasPayments", fields: [bankId], references: [id])
+
+  denominations       DenominationEntry[]  @relation("PaymentHasDenominations")
+  pinelabsTransaction PinelabsTransaction? @relation("PaymentHasPinelabsTransaction")
+}
+
+model DenominationEntry {
+  id               String                        @id @default(cuid())
+  denomination     Int?
+  count            Int?
+  transactionType  DenominationTransactionType?
+  amount           Float?
+  createdAt        DateTime                      @default(now())
+
+  paymentId        String?                       @map("payment")
+  payment          Payment?                      @relation("PaymentHasDenominations", fields: [paymentId], references: [id])
+  companyPaymentId String?                       @map("companyPayment")
+  companyPayment   CompanyPayment?               @relation("CompanyPaymentHasDenominations", fields: [companyPaymentId], references: [id])
+  branchId         String?                       @map("branch")
+  branch           Branch?                       @relation("BranchHasDenominationEntries", fields: [branchId], references: [id])
+}
+
+model CompanyDenominationInventory {
+  id            String   @id @default(cuid())
+  denomination  Int?
+  count         Int?
+  updatedAt     DateTime @updatedAt
+
+  branchId      String?  @map("branch")
+  branch        Branch?  @relation("BranchHasDenominationInventory", fields: [branchId], references: [id])
+  lastUpdatedById String? @map("lastUpdatedBy")
+  lastUpdatedBy   User?    @relation("CompanyDenominationUpdatedBy", fields: [lastUpdatedById], references: [id])
+  cashWithdrawalDenominations CashWithdrawalDenomination[] @relation("DenominationInventoryUsedInWithdrawal")
+}
+
+model PinelabsTransaction {
+  id                  String   @id @default(cuid())
+  plutusTransactionId String?
+  orderId             String?
+  status              String?
+  responsePayload     Json?
+  createdAt           DateTime @default(now())
+
+  paymentId           String?  @unique @map("payment")
+  payment             Payment? @relation("PaymentHasPinelabsTransaction", fields: [paymentId], references: [id])
+}
+
+model Customer {
+  id               String           @id @default(cuid())
+  customerId       String?           @unique
+  salutation       String?
+  name             String?
+  fatherName       String?
+  gender           String?
+  email            String?
+  dateOfBirth      DateTime?
+  GSTType          String?
+  GSTNo            String?
+  customerType     String?
+  customerGrouping String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  userId           String?          @unique @map("user")
+  user             User?            @relation("UserHasCustomer", fields: [userId], references: [id])
+  addressId        String?          @map("address")
+  address          Address?         @relation("CustomerHasAddress", fields: [addressId], references: [id])
+  shippingAddressId String?         @map("shippingAddress")
+  shippingAddress   Address?         @relation("CustomerHasShippingAddress", fields: [shippingAddressId], references: [id])
+  refferedById     String?          @map("refferedBy")
+  refferedBy       Customer?        @relation("CustomerMayRefferedByCustomer", fields: [refferedById], references: [id])
+  createdById      String?          @map("createdBy")
+  createdBy        User?            @relation("CustomerWasCreatedByUser", fields: [createdById], references: [id])
+
+  contacts          CustomerPhone[]  @relation("CustomerHaveCustomePhone")
+  refferedCustomers Customer[]       @relation("CustomerMayRefferedByCustomer")
+  purchasedVehicle  Vehicle[]        @relation("CustomerHasVehicle")
+  quotation         Quotation[]      @relation("QuotationHasCustomer")
+  activity          Activity[]       @relation("CustomerHasActivities")
+  booking           Booking[]        @relation("CustomerHaveBookings")
+  cloudCallHistory  CloudCallHistory[] @relation("CustomerHasMayCloudCallHistory")
+  payments          Payment[]        @relation("CustomerMadePayment")
+  insRenewalReminders OtherInsuranceRenewalReminder[] @relation("OtherInsuranceRenewalHasCustomer")
+  jobOrders         JobOrder[]       @relation("JobOrderHasCustomer")
+  estimates         Estimate[]       @relation("EstimateHasSurvivor")
+  saleInvoices      SaleInvoice[]    @relation("SaleInvoiceHasCustomer")
+  groups            Group[]          @relation("GroupHasCustomer")
+  multiCustomers    MultiCustomer[]  @relation("MultiCustomerHasCustomer")
+  saleSpareInvoices SaleSpareInvoice[] @relation("SaleSparesHasCustomer")
+  customerSpareOrders CustomerSpareOrder[] @relation("CustomerSpareOrderHasCustomer")
+  digitalLeads      DigitalLead[]    @relation("DigitalLeadHasCustomer")
+}
+
+model CustomerPhone {
+  id         String   @id @default(cuid())
+  phone      String?
+  type       String?
+  valid      Boolean?
+  WhatsApp   Boolean?
+  DND        Boolean?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  customerId String?   @map("customer")
+  customer   Customer? @relation("CustomerHaveCustomePhone", fields: [customerId], references: [id])
+  createdById String?  @map("createdBy")
+  createdBy  User?    @relation("CustomerPhoneWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model Quotation {
+  id                     String             @id @default(cuid())
+  quotationId            String             @unique
+  quotationPhone         String?
+  customerName           String?
+  gender                 String?
+  locality               String?
+  expectedDateOfPurchase DateTime?
+  quotationStatus        QuotationStatus    @default(ACTIVE)
+  leadSource             String?
+  enquiryType            String?
+  testDriveTaken         Boolean?
+  remarks                String?
+  image                  String?
+  scheduleDate           DateTime?
+  scheduleTime           DateTime?
+  scheduleDateAndTime    DateTime?
+  pdfWithBrochure        String?
+  pdfWithOutBrochure     String?
+  attach                 Boolean?
+  sentStatus             Boolean?
+  sentWhatsApp           Boolean?
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @updatedAt
+
+  branchId               String?            @map("branch")
+  branch                 Branch?            @relation("QuotationHasBranch", fields: [branchId], references: [id])
+  customerId             String?            @map("customer")
+  customer               Customer?          @relation("QuotationHasCustomer", fields: [customerId], references: [id])
+  executiveId            String?            @map("executive")
+  executive              User?              @relation("QuotationHasExecutive", fields: [executiveId], references: [id])
+  assignedBranchId       String?            @map("assignedBranch")
+  assignedBranch         Branch?            @relation("QuotationAssignedBranch", fields: [assignedBranchId], references: [id])
+  assignedExecutiveId    String?            @map("assignedExecutive")
+  assignedExecutive      User?              @relation("QuotationAssignedExecutive", fields: [assignedExecutiveId], references: [id])
+  createdById            String?            @map("createdBy")
+  createdBy              User?              @relation("QuotationWasCreatedByUser", fields: [createdById], references: [id])
+
+  vehicle                QuotationVehicle[] @relation("QuotationHasQuotationVehicle")
+  sms                    SmsHistory[]       @relation("QuotationHasSmsHistory")
+  bookings               Booking[]          @relation("BookingHasQuotation")
+  activities             Activity[]         @relation("ActivitiesHaveQuotation")
+}
+
+enum QuotationStatus {
+  ACTIVE
+  REJECTED
+  SOLD
+  BOOKED
+}
+
+model SmsHistory {
+  id                    String     @id @default(cuid())
+  module                String?
+  phone                 String?
+  messageId             String?
+  whatsAppId            String?
+  smsText               String?
+  smsStatus             String?
+  smsDeliveredTime      DateTime?
+  whatsAppSmsStatus     String?
+  whatsAppDeliveredTime DateTime?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  quotationId           String?    @map("quotation")
+  quotation             Quotation? @relation("QuotationHasSmsHistory", fields: [quotationId], references: [id])
+  taskId                String?    @map("task")
+  task                  Task?      @relation("TaskHasManySmsHistory", fields: [taskId], references: [id])
+  activities            Activity[] @relation("ActivitiesHasSmsHistory")
+}
+
+model QuotationVehicle {
+  id             String          @id @default(cuid())
+  financerTenure String?
+  downPayment    Int?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  vehicleDetailId String?         @map("vehicleDetail")
+  vehicleDetail   VehicleMaster? @relation("QuotationVehicleHasVehicle", fields: [vehicleDetailId], references: [id])
+  priceId         String?         @unique @map("price")
+  price           QuotationPrice? @relation("QuotationVehicleHasPrice", fields: [priceId], references: [id])
+  colorId         String?         @map("color")
+  color           Image?          @relation("QuotationVehicleHasColor", fields: [colorId], references: [id])
+  financerId      String?         @map("financer")
+  financer        Financer?       @relation("QuotationVehicleHasFinancer", fields: [financerId], references: [id])
+  quotationId     String?         @map("quotation")
+  quotation       Quotation?      @relation("QuotationHasQuotationVehicle", fields: [quotationId], references: [id])
+  createdById     String?         @map("createdBy")
+  createdBy       User?           @relation("QuotationVehicleWasCreatedByUser", fields: [createdById], references: [id])
+  
+  insuranceType   InsuranceType[] @relation("QuotaationVehicleHasInsuranceType")
+  optionalType    OptionalType[]  @relation("QuotaationVehicleHasOptionalType")
+}
+
+model QuotationPrice {
+  id                 String            @id @default(cuid())
+  showroomPrice      Float
+  roadTax            Float?
+  registrationFee    Float?
+  handlingCharges    Float?
+  warrantyPrice      Float?
+  insurance1plus5    Float?
+  insurance5plus5    Float?
+  insurance1plus5ZD  Float?
+  insurance5plus5ZD  Float?
+  amc                Float?
+  rsa                Float?
+  tcs                Float?
+  otherCharges       Float?
+  discount           Float?
+  rto                Float?
+  accessoriesRemarks String?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  quotationVehicle   QuotationVehicle? @relation("QuotationVehicleHasPrice")
+  createdById        String?           @map("createdBy")
+  createdBy          User?             @relation("QuotationPriceWasCreatedBy", fields: [createdById], references: [id])
+}
+
+model InsuranceType {
+  id                 String            @id @default(cuid())
+  type               String?
+  amount             Float?
+  onRoad             Float?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  quotationVehicleId String?            @map("quotationVehicle")
+  quotationVehicle   QuotationVehicle? @relation("QuotaationVehicleHasInsuranceType", fields: [quotationVehicleId], references: [id])
+  createdById        String?            @map("createdBy")
+  createdBy          User?             @relation("InsTypeWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model OptionalType {
+  id                 String            @id @default(cuid())
+  type               String?
+  amount             Float?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  quotationVehicleId String?
+  quotationVehicle   QuotationVehicle? @relation("QuotaationVehicleHasOptionalType", fields: [quotationVehicleId], references: [id])
+  createdById        String?
+  createdBy          User?             @relation("OptTypeWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model Booking {
+  id                   String                    @id @default(cuid())
+  bookingId            String                    @unique
+  confirmBookingId     String?                   @unique
+  receiptId            String?                   @unique
+  authorisedTime       DateTime?
+  bookingStatus        BookingStatus             @default(PENDING)
+  customerName         String?
+  customerFatherName   String?
+  customerLine1        String?
+  customerLine2        String?
+  customerLine3        String?
+  customerPhone        String?
+  customerLocality     String?
+  customerCountry      String?
+  customerState        String?
+  customerCity         String?
+  customerPincode      String?
+  customerEmail        String?
+  customerDob          DateTime?
+  customerGender       String?
+  customerPancard      String?
+  customerAadharCard   String?
+  customerAuth         Boolean?
+  supervisorAuth       Boolean?
+  nomineeName          String?
+  nomineeAge           String?
+  relationship         String?
+  remarks              String?
+  selectedVehicle      String?
+  chassisNumber        String?
+  finalAmount          Float?
+  price                Json?
+  isAdvanceBooking     Boolean?
+  cancelReason         String?
+  expectedDeliveryDate DateTime?
+  cancellationAmount   Float?
+  createdAt            DateTime                  @default(now())
+  updatedAt            DateTime                  @updatedAt
+
+  customerId           String?                   @map("customer")
+  customer             Customer?                 @relation("CustomerHaveBookings", fields: [customerId], references: [id])
+  branchId             String?                   @map("branch")
+  branch               Branch?                   @relation("BookingHasBranch", fields: [branchId], references: [id])
+  vehicleId            String?                   @map("vehicle")
+  vehicle              VehicleMaster?            @relation("BookingHasVehicleMaster", fields: [vehicleId], references: [id])
+  executiveId          String?                   @map("executive")
+  executive            User?                     @relation("BookingHasExecutive", fields: [executiveId], references: [id])
+  colorId              String?                   @map("color")
+  color                Image?                    @relation("BookingHasColors", fields: [colorId], references: [id])
+  rtoId                String?                   @map("rto")
+  rto                  Rto?                      @relation("BookingHasRTOData", fields: [rtoId], references: [id])
+  createdById          String?                   @map("createdBy")
+  createdBy            User?                     @relation("BookingWasCreatedByUser", fields: [createdById], references: [id])
+
+  quotation           Quotation[]               @relation("BookingHasQuotation")
+  accessories          AccessoriesWithDiscount[] @relation("BookingHaveAccessoriesList")
+  loan                 Loan?                     @relation("BookingMayHaveLoan")
+  authentication       Authentication?           @relation("BookingHasAuthentication")
+  histories            BookingHistory[]          @relation("BookingHasHistory")
+  payment             Payment[]                 @relation("BookingHasManyPayment")
+  exchange             Exchange?                 @relation("BookingHasExchange")
+  activities           Activity[]                @relation("ActivitiesHaveBooking")
+}
+
+enum BookingStatus {
+  ACCEPTED
+  REJECTED
+  REJECTED_REFUNDED
+  PENDING
+  SOLD
+  CUSTOMERAUTH
+  SUPERVISORAUTH
+  ADVANCE
+}
+
+model BookingHistory {
+  id          String         @id @default(cuid())
+  module      String?
+  fromStatus  BookingStatus?
+  toStatus    BookingStatus?
+  createdAt   DateTime       @default(now())
+
+  bookingId   String?        @map("booking")
+  booking     Booking?       @relation("BookingHasHistory", fields: [bookingId], references: [id])
+  changedById String?        @map("changedBy")
+  changedBy   User?          @relation("BookingHistoryChangedBy", fields: [changedById], references: [id])
+}
+
+model AccessoriesWithDiscount {
+  id          String       @id @default(cuid())
+  discount    Float?
+  isPercent   Boolean?
+  quantity    Int?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  accessoryId String?      @map("accessory")
+  accessory   PartsMaster? @relation("AccessoriesWithDiscountHasParts", fields: [accessoryId], references: [id])
+  bookingId   String?      @map("booking")
+  booking     Booking?     @relation("BookingHaveAccessoriesList", fields: [bookingId], references: [id])
+}
+
+model Authentication {
+  id                 String    @id @default(cuid())
+  manual             Boolean?
+  digital            Boolean?
+  verifiedAt         DateTime?
+  beforeVerification String?
+  afterVerification  String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  bookingId          String?   @unique @map("booking")
+  booking            Booking?  @relation("BookingHasAuthentication", fields: [bookingId], references: [id])
+}
+
+model Loan {
+  id                     String    @id @default(cuid())
+  financerBranch         String?
+  downPayment            Float?
+  loanAmount             Float?
+  loanType               String?
+  showroomFinanceCharges Float?
+  tenure                 Int?
+  emiDate                Int?
+  emiAmount              Float?
+  emiStartDate           DateTime?
+  disbursementAmount     Float?
+  hypothecation          Boolean?   @default(false)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  financerId             String?   @map("financer")
+  financer               Financer? @relation("BookingHasFinancer", fields: [financerId], references: [id])
+  bookingId              String?   @unique @map("booking")
+  booking                Booking?  @relation("BookingMayHaveLoan", fields: [bookingId], references: [id])
+}
+
+model Vehicle {
+  id                  String             @id @default(cuid())
+  registerNo          String?
+  chassisNo           String?
+  engineNo            String?
+  batteryNo           String?
+  dateOfSale          DateTime?
+  vehicleType         String?
+  mfg                 String?
+  active              Boolean?
+  averageDays         Int?
+  pymidolStatus       Boolean?
+  pymidolAttempts     Int?
+  serviceCouponNumber String?
+  nextServiceDate     DateTime?
+  applicationNumber   String?
+  eReceipt            String?
+  odExpiryDate        DateTime?
+  tpExpiryDate        DateTime?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt @default(now())
+
+  vehicleMasterId     String?            @map("vehicle")
+  vehicleMaster       VehicleMaster?     @relation("SoldVehicleHaveVehicleMaster", fields: [vehicleMasterId], references: [id])
+  colorId             String?            @map("color")
+  color               Image?             @relation("SoldVehicleHasColors", fields: [colorId], references: [id])
+  manufacturerId      String?            @map("manufacturer")
+  manufacturer        Manufacturer?      @relation("VehicleHasManufacturer", fields: [manufacturerId], references: [id])
+  createdById         String?            @map("createdBy")
+  createdBy           User?              @relation("SoldVehicleWasCreatedByUser", fields: [createdById], references: [id])
+
+  insurance           VehicleInsurance[] @relation("VehicleHaveVehicleInsurance")
+  services            ServiceList[]      @relation("SoldVehicleHasService")
+  customer            MultiCustomer[]    @relation("SoldVehicleHasMultiCustomer")
+  customerSpareOrders CustomerSpareOrder[] @relation("VehicleHasCustomerSpareOrders")
+  jobOrder            JobOrder[]         @relation("SoldVehicleHaveJobOrder")
+  serviceReminders    ServiceReminder[]  @relation("ServiceReminderHasSoldVehicle")
+  vehicleDocuments    VehicleDocument[]  @relation("VehicleHasDocuments")
+  insRenewalReminders InsuranceRenewalReminder[] @relation("InsuranceRenewalReminderHasSoldVehicle")
+  whatsappChats       WhatsappChat[]     @relation("CustomerRelatedVehicle")
+  customerId          String?            @map("customer")
+  customer_rel        Customer?          @relation("CustomerHasVehicle", fields: [customerId], references: [id])
+}
+
+model VehicleDocument {
+  id        String   @id @default(cuid())
+  url       String?
+  type      String?
+  createdAt DateTime @default(now())
+
+  vehicleId String?
+  vehicle   Vehicle? @relation("VehicleHasDocuments", fields: [vehicleId], references: [id])
+}
+
+model ServiceList {
+  id          String   @id @default(cuid())
+  serviceNo   Int?
+  serviceType String?
+  serviceDate DateTime?
+  serviceKms  Int?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  vehicles  Vehicle[] @relation("SoldVehicleHasService")
+}
+
+model VehicleInsurance {
+  id            String     @id @default(cuid())
+  insuranceType String?
+  policyNumber  String?
+  validFrom     DateTime?
+  validTo       DateTime?
+  expiryDate    DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  insuranceId   String?            @map("insurance")
+  insurance     Insurance?         @relation("VehicleInsuranceHasInsurance", fields: [insuranceId], references: [id])
+  branchId      String?            @map("branch")
+  branch        Branch?            @relation("VehicleInsuranceHasBranch", fields: [branchId], references: [id])
+  fileId        String?            @map("file")
+  file          File?              @relation("VehicleInsuranceHasFiles", fields: [fileId], references: [id])
+  vehicleId     String?            @map("vehicle")
+  vehicle       Vehicle?           @relation("VehicleHaveVehicleInsurance", fields: [vehicleId], references: [id])
+}
+
+model MultiCustomer {
+  id          String    @id @default(cuid())
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  customerId  String?   @map("customer")
+  customer    Customer? @relation("MultiCustomerHasCustomer", fields: [customerId], references: [id])
+  vehicleId   String?   @map("vehicle")
+  vehicle     Vehicle?  @relation("SoldVehicleHasMultiCustomer", fields: [vehicleId], references: [id])
+  createdById String?   @map("createdBy")
+  createdBy   User?     @relation("MultiCustomerWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model Ledger {
+  id          String   @id @default(cuid())
+  date        DateTime?
+  ledgerType  String?
+  voucherNo   String?
+  amount      Float?
+  txnType     String?
+  captialType String?
+  memo        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branchId    String?
+  branch      Branch?  @relation("LedgerHasBranch", fields: [branchId], references: [id])
+  createdById String?
+  createdBy   User?    @relation("LedgerWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model Exchange {
+  id                  String   @id @default(cuid())
+  vehicleModel        String?
+  vehicleManufacturer String?
+  vehiclePrice        Float?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  bookingId           String?  @unique
+  booking             Booking? @relation("BookingHasExchange", fields: [bookingId], references: [id])
+}
+
+model ServiceReminder {
+  id          String                 @id @default(cuid())
+  serviceDate DateTime?
+  serviceNo   Int?
+  serviceKms  Int?
+  serviceType String?
+  status      ServiceReminderStatus  @default(PENDING)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  jobOrderId  String?                @unique @map("jobOrder")
+  jobOrder    JobOrder?              @relation("ServiceReminderHasJobOrder", fields: [jobOrderId], references: [id])
+  vehicleId   String?                 @map("vehicle")
+  vehicle     Vehicle?                @relation("ServiceReminderHasSoldVehicle", fields: [vehicleId], references: [id])
+}
+
+enum ServiceReminderStatus {
+  SKIPPED
+  PENDING
+  INPROGRESS
+  COMPLETED
+}
+
+model InsuranceRenewalReminder {
+  id            String    @id @default(cuid())
+  insuranceType String?
+  expiryDate    DateTime?
+  expiryType    String?
+  policyNumber  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  vehicleId     String?   @map("vehicle")
+  vehicle       Vehicle?  @relation("InsuranceRenewalReminderHasSoldVehicle", fields: [vehicleId], references: [id])
+}
+
+model OtherInsuranceRenewalReminder {
+  id            String    @id @default(cuid())
+  insuranceType String?
+  expiryDate    DateTime?
+  expiryType    String?
+  regDate       DateTime?
+  policyNumber  String?
+  vehicleModel  String?
+  cata          String?
+  chassisNo     String?
+  engineNo      String?
+  registerNo    String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  customerId    String?   @map("customer")
+  customer      Customer? @relation("OtherInsuranceRenewalHasCustomer", fields: [customerId], references: [id])
+}
+
+model PurchaseSpareInvoice {
+  id                  String                     @id @default(cuid())
+  psiNo               String?
+  invoiceDate         DateTime?
+  currentDate         DateTime?
+  invoiceNumber       String?
+  itemRate            String?
+  discountType        String?
+  discountPercent     Float?
+  discountRate        Float?
+  tcs                 Float?
+  cgst                Float?
+  sgst                Float?
+  igst                Float?
+  totalDiscount       Float?
+  adjustment          Float?
+  totalInvoice        Float?
+  createdAt           DateTime                   @default(now())
+  updatedAt           DateTime                   @updatedAt
+
+  supplierId          String?                    @map("supplier")
+  supplier            Supplier?                  @relation("LinkedToSupplier", fields: [supplierId], references: [id])
+  purchaseItemInvoice PurchaseSpareInvoiceItem[] @relation("ItemRelatedToPurchaseSpareInvoice")
+  transactions        Transactions[]             @relation("TransactionsHavePurchasedSpares")
+}
+
+model PurchaseSpareInvoiceItem {
+  id                    String                @id @default(cuid())
+  partName              String?
+  quantity              Float?
+  unitRate              Float?
+  igst                  Float?
+  cgst                  Float?
+  sgst                  Float?
+  gstRate               Float?
+  igstAmount            Float?
+  cgstAmount            Float?
+  sgstAmount            Float?
+  discountAmount        Float?
+  discountPercent       Float?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  partNumberId          String?               @map("partNumber")
+  partNumber            PartsMaster?          @relation("PartNoRelatedToPartsMaster", fields: [partNumberId], references: [id])
+  hsnId                 String?               @map("hsn")
+  hsn                   Hsn?                  @relation("PurchaseSpareInvoiceItemHasHSN", fields: [hsnId], references: [id])
+  branchId              String?               @map("branch")
+  branch                Branch?               @relation("PurchaseSpareInvoiceHasBranch", fields: [branchId], references: [id])
+  purchaseSpareInvoiceId String?              @map("purchaseSpareInvoice")
+  purchaseSpareInvoice  PurchaseSpareInvoice? @relation("ItemRelatedToPurchaseSpareInvoice", fields: [purchaseSpareInvoiceId], references: [id])
+}
+
+model SaleSpareInvoice {
+  id                  String                 @id @default(cuid())
+  invoiceDate         DateTime?
+  invoiceNumber       String?
+  invoiceType         String?
+  itemRate            String?
+  discountType        String?
+  discountPercent     Float?
+  discountRate        Float?
+  tcs                 Float?
+  cgst                Float?
+  sgst                Float?
+  igst                Float?
+  totalDiscount       Float?
+  labourCharge        Float?
+  partsCharge         Float?
+  consumableCharge    Float?
+  adjustment          Float?
+  totalInvoice        Float?
+  status              String?
+  remarks             String?
+  internalComments    String?
+  jobInvoiceFeedback  String?
+  createdAt           DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+
+  partyNameId       String?                @map("partyName")
+  partyName         Customer?              @relation("SaleSparesHasCustomer", fields: [partyNameId], references: [id])
+  jobOrderId        String?                @map("jobOrder")
+  jobOrder          JobOrder?              @relation("SaleSparesHasJobOrder", fields: [jobOrderId], references: [id])
+  branchId          String?                @map("branch")
+  branch            Branch?                @relation("SaleSparesHasBranch", fields: [branchId], references: [id])
+  saleItemInvoice   SaleSpareInvoiceItem[] @relation("ItemRelatedToSaleSpareInvoice")
+  transactions      Transactions[]         @relation("TransactionsHaveSaledSpares")
+}
+
+model SaleSpareInvoiceItem {
+  id                 String            @id @default(cuid())
+  partName           String?
+  quantity           Float?
+  unitRate           Float?
+  igst               Float?
+  cgst               Float?
+  sgst               Float?
+  gstRate            Float?
+  igstAmount         Float?
+  cgstAmount         Float?
+  sgstAmount         Float?
+  discountAmount     Float?
+  discountPercent    Float?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  partNumberId       String?           @map("partNumber")
+  partNumber         PartsMaster?      @relation("SalesPartNoRelatedToPartsMaster", fields: [partNumberId], references: [id])
+  hsnId              String?           @map("hsn")
+  hsn                Hsn?              @relation("SaleSpareInvoiceItemHasHSN", fields: [hsnId], references: [id])
+  jobCodeId          String?           @map("jobCode")
+  jobCode            JobCode?          @relation("SaleSpareInvoiceItemHasJobCode", fields: [jobCodeId], references: [id])
+  sacId              String?           @map("sac")
+  sac                Sac?              @relation("SaleSpareInvoiceItemHasSAC", fields: [sacId], references: [id])
+  branchId           String?           @map("branch")
+  branch             Branch?           @relation("SaleSpareInvoiceHasBranch", fields: [branchId], references: [id])
+  saleSpareInvoiceId String?           @map("saleSpareInvoice")
+  saleSpareInvoice   SaleSpareInvoice? @relation("ItemRelatedToSaleSpareInvoice", fields: [saleSpareInvoiceId], references: [id])
+}
+
+model SaleRegister {
+  id                String   @id @default(cuid())
+  bookingId         String?   @unique
+  saleId            String?   @unique
+  chassisNumber     String?
+  engineNo          String?
+  saleData          Json?
+  status            String?
+  customerFeedback  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  saleInvoiceId     String?  @unique @map("saleInvoice")
+  saleInvoice       SaleInvoice? @relation("SaleRegisterToSaleInvoice", fields: [saleInvoiceId], references: [id])
+  createdById       String?  @map("createdBy")
+  createdBy         User?    @relation("SaleRegisterWasCreatedByUser", fields: [createdById], references: [id])
+  rtoDocuments      RtoDocument[] @relation("SaleRegisterHasRtoDocuments")
+}
+
+model RtoDocument {
+  id             String   @id @default(cuid())
+  url            String?
+  type           String?
+  subcategory    String?
+  createdAt      DateTime @default(now())
+
+  saleRegisterId String?       @map("saleRegister")
+  saleRegister   SaleRegister? @relation("SaleRegisterHasRtoDocuments", fields: [saleRegisterId], references: [id])
+}
+
+model SaleInvoice {
+  id                  String   @id @default(cuid())
+  invoiceNo           String   @unique
+  date                DateTime?
+  address             String?
+  vehicleModel        String?
+  modelCode           String?
+  chassisNumber       String?
+  engineNumber        String?
+  batteryNumber       String?
+  serviceCouponNumber String?
+  hsnCode             String?
+  color               String?
+  mfgMonthYear        String?
+  remarks             String?
+  price               Float?
+  gst                 Float?
+  igst                Float?
+  cgst                Float?
+  sgst                Float?
+  cess                Float?
+  net                 Float?
+  modeType            String?
+  financier           String?
+  hypothecation       Boolean?  @default(false)
+  pdf                 String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  saleRegister        SaleRegister? @relation("SaleRegisterToSaleInvoice")
+  partyId             String?  @map("party")
+  party               Customer? @relation("SaleInvoiceHasCustomer", fields: [partyId], references: [id])
+  branchId            String?  @map("branch")
+  branch              Branch?   @relation("SaleInvoiceHasBranch", fields: [branchId], references: [id])
+  createdById         String?  @map("createdBy")
+  createdBy           User?     @relation("SaleInvoiceWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model SmsTemplate {
+  id         String   @id @default(cuid())
+  name       String?
+  text       String?
+  status     String?
+  module     String?
+  submodule  String?
+  legends    String?
+  whatsAppId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  updatedById String?
+  updatedBy   User?    @relation("TemplateWasCreatedByUser", fields: [updatedById], references: [id])
+}
+
+model smsCallBack {
+  id            String   @id @default(cuid())
+  senderId      String?
+  destination   String?
+  sentTime      DateTime?
+  deliveredTime DateTime?
+  status        String?
+  reason        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WhatsappTemplate {
+  id         String   @id @default(cuid())
+  name       String?
+  text       String?
+  status     String?
+  module     String?
+  submodule  String?
+  legends    String?
+  whatsAppId String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  updatedById String?
+  updatedBy   User?    @relation("WhatsappTemplateWasCreatedByUser", fields: [updatedById], references: [id])
+}
+
+model WhatsappCallBack {
+  id            String   @id @default(cuid())
+  uid           String?
+  name          String?
+  module        String?
+  destination   String?
+  type          String?
+  sentTime      DateTime?
+  deliveredTime DateTime?
+  status        String?
+  text          String?
+  source        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model WhatsappChat {
+  id           String   @id @default(cuid())
+  name         String?
+  number       String   @unique
+  notification Boolean?
+  count        Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  vehicleId    String?
+  vehicle      Vehicle? @relation("CustomerRelatedVehicle", fields: [vehicleId], references: [id])
+  text         WhatsappMessageList[] @relation("MessagesRelatedToChats")
+}
+
+model WhatsappMessageList {
+  id            String   @id @default(cuid())
+  direction     String?
+  text          String?
+  url           String?
+  sentTime      DateTime?
+  deliveredTime DateTime?
+  status        String?
+  uid           String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  chatId        String?
+  chat          WhatsappChat? @relation("MessagesRelatedToChats", fields: [chatId], references: [id])
+}
+
+model WhatsappPromotion {
+  id         String   @id @default(cuid())
+  promotionName String?
+  whatsAppText  String?
+  status        String?
+  legends       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  updatedById String?
+  updatedBy   User?    @relation("WhatsappPromotionWasCreatedByUser", fields: [updatedById], references: [id])
+}
+
+model CloudCallCallback {
+  id           String   @id @default(cuid())
+  callId       String?
+  status       String?
+  phoneNumber  String?
+  startTime    String?
+  ringingTime  String?
+  duration     String?
+  callerId     String?
+  dialTime     String?
+  pickTime     String?
+  endTime      String?
+  recordingUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model CloudCallHistory {
+  id           String   @id @default(cuid())
+  callId       String?
+  phone1       String?
+  phone2       String?
+  status       String?
+  startTime    String?
+  duration     String?
+  dialTime     String?
+  pickTime     String?
+  endTime      String?
+  recordingUrl String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customerId   String?
+  customer     Customer?  @relation("CustomerHasMayCloudCallHistory", fields: [customerId], references: [id])
+  activities   Activity[] @relation("ActivitiesHaveCloudCallHistory")
+}
+
+model TeleCMICallHistory {
+  id             String   @id @default(cuid())
+  virtual_number String?
+  call_id        String?
+  leg            String?
+  type           String?
+  appid          String?
+  to             String?
+  cmiuuid        String?
+  status         String?
+  user           String?
+  time           String?
+  direction      String?
+  answeredsec    String?
+  hangup_reason  String?
+  extra_params   String?
+  filename       String?
+  module         String?
+  moduleid       String?
+  from           String?
+  activityId     String?
+  bucketURL      String?
+  attendant      String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model AutoCallLog {
+  id           String                  @id @default(cuid())
+  phoneNumber  String
+  status       String?
+  callId       String?
+  startTime    DateTime?
+  endTime      DateTime?
+  duration     Int?
+  recordingUrl String?
+  module       String
+  submodule    String
+  customer     String?
+  vehicle      String?
+  error        String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  templateId   String?                 @map("template")
+  template     AutoCallVoiceTemplate?  @relation("AutoCallLogHasTemplate", fields: [templateId], references: [id])
+}
+
+model AutoCallVoiceTemplate {
+  id         String          @id @default(cuid())
+  name       String
+  text       String?
+  status     String?
+  module     String
+  submodule  String
+  legends    String?
+  voice      String?
+  audioUrl   String?
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+
+  updatedById String?          @map("updatedBy")
+  updatedBy   User?          @relation("AutoCallTemplateUpdatedBy", fields: [updatedById], references: [id])
+  callLogs    AutoCallLog[]  @relation("AutoCallLogHasTemplate")
+}
+
+model TeleCMIUserStatus {
+  id               String   @id @default(cuid())
+  teleCMIUserID    String
+  teleCMIUserName  String?
+  status           Boolean?
+  activeUserId     String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+model RingTone {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  status    Boolean?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Task {
+  id            String       @id @default(cuid())
+  taskId        String?
+  executionTime DateTime?
+  senderId      String?
+  status        String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  groupId       String?
+  group         Group?       @relation("TaskHasGroup", fields: [groupId], references: [id])
+  messageId     String?
+  message       Message?     @relation("TaskHasMessage", fields: [messageId], references: [id])
+  createdById   String?
+  createdBy     User?        @relation("TasksWasCreatedByUser", fields: [createdById], references: [id])
+  smsDetails    SmsHistory[] @relation("TaskHasManySmsHistory")
+}
+
+model Group {
+  id          String    @id @default(cuid())
+  groupName   String?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  filterId    String?   @unique @map("filter")
+  filter      Filter?   @relation("GroupHasFilter", fields: [filterId], references: [id])
+  createdById String?   @map("createdBy")
+  createdBy   User?     @relation("GroupWasCreatedByUser", fields: [createdById], references: [id])
+  customers   Customer[] @relation("GroupHasCustomer")
+  tasks       Task[]    @relation("TaskHasGroup")
+}
+
+// REMINDER: Run SQL migration for model, gender, customerType, etc. (Option 2)
+model Filter {
+  id               String    @id @default(cuid())
+  model            String[]
+  allModel         Boolean?
+  from             DateTime?
+  to               DateTime?
+  gender           String[]
+  allGender        Boolean?
+  customerType     String[]
+  allCustomerType  Boolean?
+  customerGrouping String[]
+  allCustomerGrouping Boolean?
+  leadStage        String[]
+  allLeadStage     Boolean?
+  fromAge          Int?
+  toAge            Int?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  group            Group?    @relation("GroupHasFilter")
+}
+
+model Message {
+  id            String   @id @default(cuid())
+  promotionName String?
+  sms           String?
+  legends       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  createdById   String?
+  createdBy     User?    @relation("MessageWasCreatedByUser", fields: [createdById], references: [id])
+  tasks         Task[]   @relation("TaskHasMessage")
+}
+
+model SmsJob {
+  id            String    @id @default(cuid())
+  eventType     String?
+  status        String?
+  body          String?
+  phone         String?
+  contactType   String?
+  scheduledTime DateTime?
+  attempts      Int?
+  taskId        String?
+  senderId      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+// ============================================
+// SUPPORTING TYPES (EXTRACTED)
+// ============================================
+
+model Activity {
+  id                  String    @id @default(cuid())
+  activityId          String?
+  scheduleDateAndTime DateTime?
+  quotationState      String?
+  phone               String?
+  duration            String?
+  callId              String?
+  enquiryType         String?
+  interactionType     String?
+  activityType        String?
+  sentStatus          Boolean?
+  sentWhatsApp        Boolean?
+  remarks             String?
+  discardMsg          String?
+  callHistoryId       String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  customerId       String?            @map("customer")
+  customer         Customer?          @relation("CustomerHasActivities", fields: [customerId], references: [id])
+  quotationId      String?            @map("quotation")
+  quotation        Quotation?         @relation("ActivitiesHaveQuotation", fields: [quotationId], references: [id])
+  bookingId        String?            @map("booking")
+  booking          Booking?           @relation("ActivitiesHaveBooking", fields: [bookingId], references: [id])
+  smsId            String?            @map("sms")
+  sms              SmsHistory?        @relation("ActivitiesHasSmsHistory", fields: [smsId], references: [id])
+  callHistoryRefId String?            @map("callHistory")
+  callHistory      CloudCallHistory?  @relation("ActivitiesHaveCloudCallHistory", fields: [callHistoryRefId], references: [id])
+  createdById      String?            @map("createdBy")
+  createdBy        User?              @relation("ActivityWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model CustomerSpareOrder {
+  id              String    @id @default(cuid())
+  orderNumber     String?
+  orderDate       DateTime?
+  orderType       OrderType?
+  discountType    String?
+  discountAmount  Float?
+  discountlevel   String?
+  GrandTotal      Float?
+  Advance         Float?
+  Balance         Float?
+  convertedData   Json?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  vehicleId       String?           @map("soldVehicle")
+  soldVehicle     Vehicle?          @relation("VehicleHasCustomerSpareOrders", fields: [vehicleId], references: [id])
+  jobCardId       String?           @map("jobCard")
+  jobCard         JobOrder?         @relation("CustomerSpareOrderHasJobOrder", fields: [jobCardId], references: [id])
+  partyNameId     String?           @map("partyName")
+  partyName       Customer?         @relation("CustomerSpareOrderHasCustomer", fields: [partyNameId], references: [id])
+  branchId        String?           @map("branch")
+  branch          Branch?           @relation("CustomerSpareOrderHasBranch", fields: [branchId], references: [id])
+  sparePartOrders SparePartOrder[]  @relation("SparePartOrderHasCustomerOrder")
+  customerSpareOrderItem           CustomerSpareOrderItem[] @relation("ItemRelatedToCustomerSpareOrder")
+}
+
+model VehiclePurchaseInvoice {
+  id             String    @id @default(cuid())
+  invoiceNo      String?
+  date           DateTime?
+  invoiceDate    DateTime?
+  quantity       Int?
+  amount         Float?
+  grossTotal     Float?
+  netAmount      Float?
+  roundOff       Float?
+  others         Float?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  purchaseChallanId  String?
+  purchaseChallan    VehiclePurchaseChallan? @relation("PurchaseInvoiceHasPurchaseChallan", fields: [purchaseChallanId], references: [id])
+  createdById        String?
+  createdBy          User?                   @relation("PurchaseInvoiceWasCreatedByUser", fields: [createdById], references: [id])
+
+  vehicleInventory VehicleInventory[] @relation("VehicleTransactionsHavePurchasedSpares")
+  purchaseReturns  VehiclePurchaseReturn[] @relation("PurchaseReturnHasPurchaseInvoice")
+}
+
+// ============================================
+// MISSING MODELS FROM ORIGINAL SCHEMA
+// ============================================
+
+enum PlateOrderStatus {
+  ORDERED
+  RECEIVED
+  FIXED
+}
+
+model CustomerSpareOrderItem {
+  id                   String              @id @default(cuid())
+  quantity             Float?
+  unitRate             Float?
+  discount             Float?
+  grossAmount          Float?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+
+  partNumberId         String?             @map("partNumber")
+  partNumber           PartsMaster?        @relation("CustomerSparePartNoRelatedToPartsMaster", fields: [partNumberId], references: [id])
+  customerSpareOrderId String?             @map("customerSpareOrder")
+  customerSpareOrder   CustomerSpareOrder? @relation("ItemRelatedToCustomerSpareOrder", fields: [customerSpareOrderId], references: [id])
+}
+
+model VehiclePurchaseChallan {
+  id                String                   @id @default(cuid())
+  date              DateTime?
+  challanNo         String?                  @unique
+  challanDate       DateTime?
+  supplierChallanNo String?
+  createdAt         DateTime                 @default(now())
+  updatedAt         DateTime                 @updatedAt
+
+  supplierId        String?
+  supplier          Supplier?                @relation("PurchaseChallanHasSupplier", fields: [supplierId], references: [id])
+  branchId          String?
+  branch            Branch?                  @relation("PurchaseChallanHasBranch", fields: [branchId], references: [id])
+  createdById       String?
+  createdBy         User?                    @relation("PurchaseChallanWasCreatedByUser", fields: [createdById], references: [id])
+
+  vehicleDetails    PurchasedVehicleDetail[] @relation("PurchaseChallanHasVehicleDetails")
+  purchaseInvoices  VehiclePurchaseInvoice[] @relation("PurchaseInvoiceHasPurchaseChallan")
+  purchaseReturns   VehiclePurchaseReturn[]  @relation("PurchaseReturnHasPurchaseChallan")
+}
+
+model PurchasedVehicleDetail {
+  id                String                  @id @default(cuid())
+  invoiceAmount     Float?
+  chassisNo         String?
+  engineNo          String?
+  keyNo             String?
+  warrantyBookNo    String?
+  batteryNo         String?
+  manMonthYear      String?
+  sold              Boolean?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  vehicleId         String?                 @map("vehicle")
+  vehicle           VehicleMaster?          @relation("VehicleDetailHasVehicleMaster", fields: [vehicleId], references: [id])
+  colorId           String?                 @map("color")
+  color             Image?                  @relation("VehicleDetailsHasColor", fields: [colorId], references: [id])
+  purchaseChallanId String?                 @map("purchaseChallan")
+  purchaseChallan   VehiclePurchaseChallan? @relation("PurchaseChallanHasVehicleDetails", fields: [purchaseChallanId], references: [id])
+  createdById       String?                 @map("createdBy")
+  createdBy         User?                   @relation("VehicleDetailWasCreatedByUser", fields: [createdById], references: [id])
+  purchaseReturns   VehiclePurchaseReturn[] @relation("PurchaseReturnHasVehicleDetails")
+}
+
+model VehiclePurchaseReturn {
+  id                String                  @id @default(cuid())
+  date              DateTime?
+  returnInvoiceNo   String?                 @unique
+  quantity          Int?
+  amount            Float?
+  grossTotal        Float?
+  netAmount         Float?
+  roundOff          Float?
+  others            Float?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+
+  purchaseInvoiceId String?                 @map("purchaseInvoice")
+  purchaseInvoice   VehiclePurchaseInvoice? @relation("PurchaseReturnHasPurchaseInvoice", fields: [purchaseInvoiceId], references: [id])
+  purchaseChallanId String?                 @map("purchaseChallan")
+  purchaseChallan   VehiclePurchaseChallan? @relation("PurchaseReturnHasPurchaseChallan", fields: [purchaseChallanId], references: [id])
+  createdById       String?                 @map("createdBy")
+  createdBy         User?                   @relation("PurchaseReturnWasCreatedByUser", fields: [createdById], references: [id])
+  returnVehicle     PurchasedVehicleDetail[] @relation("PurchaseReturnHasVehicleDetails")
+}
+
+model FrameNumber {
+  id             String        @id @default(cuid())
+  position       Int?
+  inputValue     String?
+  inferredField  String?
+  targetValue    String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  manufacturerId String?       @map("manufacturer")
+  manufacturer   Manufacturer? @relation("FrameNumberHasManufacturer", fields: [manufacturerId], references: [id])
+  createdById    String?       @map("createdBy")
+  createdBy      User?         @relation("FrameNumberWasCreatedByUser", fields: [createdById], references: [id])
+}
+
+model NumberPlate {
+  id               String           @id @default(cuid())
+  registerNo       String
+  chassisNo        String
+  engineNo         String?
+  applicationType  String?          @default("NB")
+  goodsCareerMGV   String?          @default("M-Cycle/Scooter~2WN~PETROL")
+  makerName        String?          @default("INDIA YAMAHA MOTOR PVT LTD")
+  modelName        String?
+  customerName     String
+  dealershipName   String?          @default("PACER MOTORS PVT LTD")
+  applicationNo    String?
+  plateOrderStatus PlateOrderStatus @default(ORDERED)
+  eReceipt         String?
+  // REMINDER: Migrate images from NumberPlate_images (Option 2)
+  images           String[]
+  orderedDate      DateTime?
+  receivedDate     DateTime?
+  registrationDate DateTime?
+  fixedDate        DateTime?
+  bookingId        String?
+  branchName       String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  locationId String?               @map("Location")
+  Location   Branch?               @relation("BranchHasNumberPlate", fields: [locationId], references: [id])
+  transfers  NumberPlateTransfer[] @relation("TransferredNumberPlate")
+}
+
+model NumberPlateTransfer {
+  id            String      @id @default(cuid())
+  createdAt     DateTime    @default(now())
+
+  fromBranchId  String?     @map("fromBranch")
+  fromBranch    Branch?      @relation("FromBranchTransfers", fields: [fromBranchId], references: [id])
+  toBranchId    String?     @map("toBranch")
+  toBranch      Branch?      @relation("ToBranchTransfers", fields: [toBranchId], references: [id])
+  numberPlateId String?     @map("numberPlate")
+  numberPlate   NumberPlate? @relation("TransferredNumberPlate", fields: [numberPlateId], references: [id])
+}
+
+model OtherInsuranceUploadHistory {
+  id        Int      @id @default(autoincrement())
+  filename  String?
+  status    String?  @default("PENDING")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BookingPayment {
+  id                   String   @id @default(cuid())
+  transactionId        String?  @unique
+  orderId              String?
+  razorpayOrderId      String?
+  razorpayPaymentId    String?
+  razorpaySignature    String?
+  status               String?
+  amount               Float?
+  amountRefunded       Float?
+  modeOfPayment        String?
+  bank                 String?
+  cardDetails          Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model CashWithdrawalHistory {
+  id             String   @id @default(cuid())
+  withdrawalDate DateTime
+  totalAmount    Float
+  accountBalance Float?
+  createdAt      DateTime @default(now())
+
+  branchId      String?  @map("branch")
+  branch        Branch?  @relation("BranchHasCashWithdrawals", fields: [branchId], references: [id])
+  withdrawnById String?  @map("withdrawnBy")
+  withdrawnBy   User?    @relation("CashWithdrawnBy", fields: [withdrawnById], references: [id])
+
+  denominations CashWithdrawalDenomination[] @relation("WithdrawalHasDenominations")
+}
+
+model CashWithdrawalDenomination {
+  id                      String                       @id @default(cuid())
+  denomination            Int
+  count                   Int
+  amount                  Float
+
+  withdrawalId            String? @map("withdrawal")
+  withdrawal              CashWithdrawalHistory?        @relation("WithdrawalHasDenominations", fields: [withdrawalId], references: [id])
+  denominationInventoryId String? @map("denominationInventory")
+  denominationInventory   CompanyDenominationInventory? @relation("DenominationInventoryUsedInWithdrawal", fields: [denominationInventoryId], references: [id])
+}
+
+// ============================================
+// ADDITIONAL MISSING MODELS
+// ============================================
+
+model Pinelabs {
+  id             String   @id @default(cuid())
+  machineId      String?
+  clientId       String?
+  merchantId     String?
+  storeId        String?
+  securityToken  String?
+  branch         String?
+  MBR            Float?
+  userIds        String[]
+  accountBalance Float    @default(0.0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+model PartsTable {
+  id          String   @id @default(cuid())
+  refNo       String?
+  partName    String?
+  partNo      String?
+  description String?
+  B7JE        String?
+  B7JF        String?
+  B7JG        String?
+  B7JH        String?
+  remarks     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// ============================================
+// FINAL MISSING MODELS
+// ============================================
+
+enum accountType {
+  SAVINGS
+  CURRENT
+  OD
+  CREDIT
+  CARD
+}
+
+model Otp {
+  id         String   @id @default(cuid())
+  passcode   String?
+  validTill  DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model DigitalLead {
+  id                  String    @id @default(cuid())
+  name                String?
+  phone               String?
+  scheduleDateAndTime DateTime?
+  enquiryType         String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  customerId String?
+  customer   Customer? @relation("DigitalLeadHasCustomer", fields: [customerId], references: [id])
+}
+
+model SalesTarget {
+  id        String       @id @default(cuid())
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  employeeId  String?      @map("employee")
+  employee    User?        @relation("SalesTargetHasUser", fields: [employeeId], references: [id])
+  targetData  TargetData[] @relation("SalesTargetHasManyTargetData")
+}
+
+model TargetData {
+  id           String      @id @default(cuid())
+  monthly      Json?
+  targetType   String?
+  timeline     String?
+  value        String?
+  yearly       Json?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  salesTargetId String?      @map("salesTarget")
+  salesTarget   SalesTarget? @relation("SalesTargetHasManyTargetData", fields: [salesTargetId], references: [id])
+}
+
+// ============================================
+// COMMENTED-OUT MODELS FROM PRISMA 1
+// (These were commented in original - preserved here for reference)
+// ============================================
+
+// model Accessories {
+//   id          String   @id @default(cuid())
+//   code        String   @unique
+//   name        String?
+//   image       String?
+//   price       Float?
+//   createdAt   DateTime @default(now())
+//   updatedAt   DateTime @updatedAt
+//
+//   createdById String?
+//   createdBy   User?                    @relation("AccessoriesWasCreatedBy", fields: [createdById], references: [id])
+//   vehicleSuit AccessoriesVehicleSuit[] @relation("AccessoriesHasVehicleMaster")
+// }
+
+// model AccessoriesVehicleSuit {
+//   id          String        @id @default(cuid())
+//   accessoryId String
+//   accessory   Accessories   @relation("AccessoriesHasVehicleMaster", fields: [accessoryId], references: [id])
+//   vehicleId   String
+//   vehicle     VehicleMaster @relation("AccessoriesSuitHasVehicleMaster", fields: [vehicleId], references: [id])
+//
+//   @@unique([accessoryId, vehicleId])
+// }
+
+// model VehicleTransactions {
+//   id             String                 @id @default(cuid())
+//   sparesPurchase VehiclePurchaseInvoice[] @relation("VehicleTransactionsHavePurchasedSpares")
+//   sparesSale     SaleSpareInvoice[]       @relation("TransactionsHaveSaledSpares")
+//   createdAt      DateTime               @default(now())
+// }
+
+// model CustomerPartsOrder {
+//   id          String      @id @default(cuid())
+//   orderNo     String?
+//   date        DateTime?
+//   description String?
+//   quantity    Int?
+//   total       Float?
+//   createdAt   DateTime    @default(now())
+//   updatedAt   DateTime    @updatedAt
+//
+//   customerId  String?
+//   customer    Customer?   @relation("CustomerPartsOrderHasCustomer", fields: [customerId], references: [id])
+//   createdById String?
+//   createdBy   User?       @relation("CustomerPartsOrderWasCreatedBy", fields: [createdById], references: [id])
+//   deletedById String?
+//   deletedBy   User?       @relation("CustomerPartsOrderWasDeletedBy", fields: [deletedById], references: [id])
+//   deletedAt   DateTime?
+// }
+model UserBranchAccess {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branchId  String?  @map("branch")
+  branch    Branch?  @relation("UserBranchAccessToBranch", fields: [branchId], references: [id])
+  userId    String?  @map("user")
+  user      User?    @relation("UserBranchAccessToUser", fields: [userId], references: [id])
+}
+
+model UserManagement {
+  id        String   @id @default(cuid())
+  username  String?
+  password  String?
+  name      String?
+  role      String?
+  email     String?
+  mobile    String?
+  status    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
