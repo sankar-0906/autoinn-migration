@@ -22,6 +22,8 @@ import ledgerRoutes from "./ledger.js";
 import reportRoutes from "./reports.js";
 import supplierRoutes from "./supplier.js";
 import purchaseChallanRoutes from "./purchaseChallan.js";
+import purchaseInvoiceRoutes from "./purchaseInvoice.js";
+import purchaseSpareInvoiceRoutes from "./purchaseSpareInvoice.js";
 
 const router = Router();
 
@@ -48,5 +50,7 @@ router.use("/ledger", ledgerRoutes);
 router.use("/reports", reportRoutes);
 router.use("/supplier", supplierRoutes);
 router.use("/purchaseChallan", purchaseChallanRoutes);
+router.use("/purchaseInvoice", purchaseInvoiceRoutes);
+router.use("/purchaseSpareInvoice", purchaseSpareInvoiceRoutes);
 
 export default router;
