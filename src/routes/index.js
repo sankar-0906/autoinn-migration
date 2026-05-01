@@ -24,6 +24,9 @@ import supplierRoutes from "./supplier.js";
 import purchaseChallanRoutes from "./purchaseChallan.js";
 import purchaseInvoiceRoutes from "./purchaseInvoice.js";
 import purchaseSpareInvoiceRoutes from "./purchaseSpareInvoice.js";
+import saleInvoiceRoutes from "./saleInvoice.js";
+import saleRegisterRoutes from "./saleRegister.js";
+import soldVehicleRoutes from "./soldVehicle.js";
 
 const router = Router();
 
@@ -52,5 +55,8 @@ router.use("/supplier", supplierRoutes);
 router.use("/purchaseChallan", purchaseChallanRoutes);
 router.use("/purchaseInvoice", purchaseInvoiceRoutes);
 router.use("/purchaseSpareInvoice", purchaseSpareInvoiceRoutes);
+router.use("/saleInvoice", saleInvoiceRoutes);
+router.use("/saleRegister", saleRegisterRoutes);
+router.use("/soldVehicle", soldVehicleRoutes);
 
 export default router;
