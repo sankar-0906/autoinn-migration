@@ -8,6 +8,8 @@ import companyRoutes from "./company.js";
 import manufacturerRoutes from "./manufacturer.js";
 import financerRoutes from "./financer.js";
 import vehicleMasterRoutes from "./vehicleMaster.js";
+import customerRoutes from "./customer.js";
+import enquiryRoutes from "./enquiry.js";
 
 const router = Router();
 
@@ -20,5 +22,7 @@ router.use("/company", companyRoutes);
 router.use("/manufacturer", manufacturerRoutes);
 router.use("/financer", financerRoutes);
 router.use("/vehicleMaster", vehicleMasterRoutes);
+router.use("/customer", customerRoutes);
+router.use("/enquiry", enquiryRoutes);
 
 export default router;
