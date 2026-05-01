@@ -18,6 +18,8 @@ import partsMasterRoutes from "./partsMaster.js";
 import sparesInventoryRoutes from "./sparesInventory.js";
 import jobOrderRoutes from "./jobOrder.js";
 import jobOrderLogRoutes from "./jobOrderLog.js";
+import ledgerRoutes from "./ledger.js";
+import reportRoutes from "./reports.js";
 
 const router = Router();
 
@@ -40,5 +42,7 @@ router.use("/partsMaster", partsMasterRoutes);
 router.use("/sparesInventory", sparesInventoryRoutes);
 router.use("/jobOrder", jobOrderRoutes);
 router.use("/jobOrderLog", jobOrderLogRoutes);
+router.use("/ledger", ledgerRoutes);
+router.use("/reports", reportRoutes);
 
 export default router;
