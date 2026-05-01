@@ -6,6 +6,7 @@ import compression from "compression";
 import { env } from "./src/config/env.config.js";
 import logger from "./src/config/logger.config.js";
 import prisma from "./src/config/prisma.config.js";
+import apiRoutes from "./src/routes/index.js";
 
 const app = express();
 
@@ -15,6 +16,9 @@ app.use(cors());
 app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// --- API ROUTES ---
+app.use("/api", apiRoutes);
 
 // --- HEALTH CHECK ---
 app.get("/health", async (req, res) => {
