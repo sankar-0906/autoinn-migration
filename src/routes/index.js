@@ -13,6 +13,9 @@ import enquiryRoutes from "./enquiry.js";
 import vehiclePriceRoutes from "./vehiclePrice.js";
 import quotationRoutes from "./quotation.js";
 import bookingRoutes from "./booking.js";
+import vehicleInventoryRoutes from "./vehicleInventory.js";
+import partsMasterRoutes from "./partsMaster.js";
+import sparesInventoryRoutes from "./sparesInventory.js";
 
 const router = Router();
 
@@ -30,5 +33,8 @@ router.use("/enquiry", enquiryRoutes);
 router.use("/vehiclePrice", vehiclePriceRoutes);
 router.use("/quotation", quotationRoutes);
 router.use("/booking", bookingRoutes);
+router.use("/vehicleInventory", vehicleInventoryRoutes);
+router.use("/partsMaster", partsMasterRoutes);
+router.use("/sparesInventory", sparesInventoryRoutes);
 
 export default router;
