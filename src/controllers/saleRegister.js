@@ -11,11 +11,26 @@ class SaleRegisterController {
   registerInclude = {
     saleInvoice: {
       include: {
-        party: true,
+        party: {
+          include: {
+            CustomerPhone: true
+          }
+        },
         branch: true
       }
-    },
-    rtoDocuments: true
+    }
+  };
+
+  formatSaleRegister = (r) => {
+    if (!r) return r;
+    const formatted = { ...r };
+    if (formatted.saleInvoice && formatted.saleInvoice.party) {
+      formatted.saleInvoice.party = {
+        ...formatted.saleInvoice.party,
+        contacts: formatted.saleInvoice.party.CustomerPhone
+      };
+    }
+    return formatted;
   };
 
   getAllSaleRegisters = async (req, res) => {
@@ -55,7 +70,7 @@ class SaleRegisterController {
       return res.json({
         code: 200,
         msg: "Sale Registers fetched",
-        data: { count, registers }
+        data: { count, registers: registers.map(r => this.formatSaleRegister(r)) }
       });
     } catch (err) {
       logger.error("Get sale registers error:", err);
@@ -74,7 +89,7 @@ class SaleRegisterController {
       if (register) {
         return res.json({
           code: 200,
-          data: register
+          data: this.formatSaleRegister(register)
         });
       }
       return res.status(404).json({ code: 404, message: "Not found" });
@@ -102,7 +117,7 @@ class SaleRegisterController {
       return res.json({
         code: 200,
         message: "Status updated",
-        data: updated
+        data: this.formatSaleRegister(updated)
       });
     } catch (err) {
       logger.error("Update sale register status error:", err);

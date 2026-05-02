@@ -9,7 +9,7 @@ import titleCase from "../utils/string.util.js";
 class CustomerController {
   // Shared include object to mirror the legacy fragment
   customerInclude = {
-    contacts: true,
+    CustomerPhone: true,
     address: {
       include: {
         district: true,
@@ -26,28 +26,18 @@ class CustomerController {
     },
     refferedBy: {
       include: {
-        contacts: true
-      }
-    },
-    purchasedVehicle: {
-      include: {
-        vehicle: {
-          include: {
-            manufacturer: true
-          }
-        },
-        color: true
+        CustomerPhone: true
       }
     },
     quotation: {
       include: {
-        vehicle: {
+        QuotationVehicle: {
           include: {
             vehicleDetail: {
               include: {
-                manufacturer: true,
-                image: true,
-                price: true
+                Manufacturer: true,
+                images: true,
+                prices: true
               }
             }
           }
@@ -59,13 +49,56 @@ class CustomerController {
       include: {
         vehicle: {
           include: {
-            manufacturer: true,
-            price: true
+            Manufacturer: true,
+            prices: true
           }
         },
         color: true
       }
     }
+  };
+
+  formatCustomer = (c) => {
+    if (!c) return c;
+    const formatted = {
+      ...c,
+      contacts: c.CustomerPhone,
+    };
+
+    if (formatted.refferedBy) {
+        formatted.refferedBy = {
+            ...formatted.refferedBy,
+            contacts: formatted.refferedBy.CustomerPhone
+        };
+    }
+
+    if (formatted.quotation) {
+        formatted.quotation = formatted.quotation.map(q => ({
+            ...q,
+            vehicle: q.QuotationVehicle?.length > 0 ? {
+                ...q.QuotationVehicle[0],
+                vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
+                    ...q.QuotationVehicle[0].vehicleDetail,
+                    manufacturer: q.QuotationVehicle[0].vehicleDetail.Manufacturer,
+                    image: q.QuotationVehicle[0].vehicleDetail.images,
+                    price: q.QuotationVehicle[0].vehicleDetail.prices
+                } : null
+            } : null
+        }));
+    }
+
+    if (formatted.booking) {
+        formatted.booking = formatted.booking.map(b => ({
+            ...b,
+            vehicle: b.vehicle ? {
+                ...b.vehicle,
+                manufacturer: b.vehicle.Manufacturer,
+                price: b.vehicle.prices
+            } : null
+        }));
+    }
+
+    return formatted;
   };
 
   createCustomer = async (req, res) => {
@@ -92,7 +125,7 @@ class CustomerController {
           dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
           createdAt: new Date(),
           updatedAt: new Date(),
-          contacts: contacts && contacts.length > 0 ? {
+          CustomerPhone: contacts && contacts.length > 0 ? {
             create: contacts.map(c => ({
               phone: c.phone,
               type: c.type,
@@ -100,7 +133,8 @@ class CustomerController {
               DND: c.DND !== undefined ? c.DND : false,
               WhatsApp: c.WhatsApp !== undefined ? c.WhatsApp : false,
               createdAt: new Date(),
-              updatedAt: new Date()
+              updatedAt: new Date(),
+              createdBy: user ? { connect: { id: user } } : undefined
             }))
           } : undefined,
           address: address ? {
@@ -141,7 +175,7 @@ class CustomerController {
         response: {
           code: 200,
           message: "Customer created",
-          data: created
+          data: this.formatCustomer(created)
         }
       });
     } catch (err) {
@@ -164,7 +198,7 @@ class CustomerController {
           response: {
             code: 200,
             message: "customer fetched",
-            data: customer
+            data: this.formatCustomer(customer)
           }
         });
       }
@@ -187,7 +221,7 @@ class CustomerController {
           { name: { contains: inputValue, mode: 'insensitive' } },
           { name: { contains: tCased, mode: 'insensitive' } },
           { customerId: { contains: inputValue, mode: 'insensitive' } },
-          { contacts: { some: { phone: { contains: inputValue } } } }
+          { CustomerPhone: { some: { phone: { contains: inputValue } } } }
         ]
       };
 
@@ -207,7 +241,7 @@ class CustomerController {
         response: {
           code: 200,
           msg: "Customers  fetched",
-          data: { count, customer: customers }
+          data: { count, customer: customers.map(c => this.formatCustomer(c)) }
         }
       });
     } catch (err) {
@@ -221,7 +255,7 @@ class CustomerController {
       const { id } = req.params; // Phone number
       const customers = await prisma.customer.findMany({
         where: {
-          contacts: {
+          CustomerPhone: {
             some: { phone: id }
           }
         },
@@ -233,7 +267,7 @@ class CustomerController {
         response: {
           code: 200,
           message: "customer fetched",
-          data: customers[0] || null
+          data: customers[0] ? this.formatCustomer(customers[0]) : null
         }
       });
     } catch (err) {

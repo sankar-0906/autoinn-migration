@@ -61,18 +61,44 @@ class UserController {
   };
 
   /**
+   * Helper to format Department object (mapping RoleAccess to roleAccess).
+   */
+  formatDepartment(dept) {
+    if (!dept) return null;
+    const { RoleAccess, ...rest } = dept;
+    return {
+      ...rest,
+      roleAccess: RoleAccess || []
+    };
+  }
+
+  /**
    * Helper to format User object to match legacy fragment structure.
    */
   formatUser(user) {
     if (!user) return null;
     const { EmployeeProfile_User_profileToEmployeeProfile, ...rest } = user;
     
+    if (EmployeeProfile_User_profileToEmployeeProfile) {
+      const profile = { ...EmployeeProfile_User_profileToEmployeeProfile };
+      
+      // Ensure branch is an array
+      profile.branch = profile.branch || [];
+      
+      // Format department if exists
+      if (profile.department) {
+        profile.department = this.formatDepartment(profile.department);
+      }
+
+      return {
+        ...rest,
+        profile
+      };
+    }
+
     return {
       ...rest,
-      profile: EmployeeProfile_User_profileToEmployeeProfile ? {
-        ...EmployeeProfile_User_profileToEmployeeProfile,
-        branch: EmployeeProfile_User_profileToEmployeeProfile.branch || []
-      } : null
+      profile: null
     };
   }
 
@@ -252,7 +278,7 @@ class UserController {
         return res.json({
           code: 200,
           message: "Role access fetched",
-          data: userData.EmployeeProfile_User_profileToEmployeeProfile?.department,
+          data: this.formatDepartment(userData.EmployeeProfile_User_profileToEmployeeProfile?.department),
         });
       }
     } catch (err) {

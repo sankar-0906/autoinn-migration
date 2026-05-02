@@ -9,16 +9,28 @@ import titleCase from "../utils/string.util.js";
 class VehicleMasterController {
   // Shared include object to mirror the legacy fragment
   vehicleMasterInclude = {
-    manufacturer: true,
-    file: true,
-    image: true,
+    Manufacturer: true,
+    files: true,
+    images: true,
     services: true,
-    hsn: true,
-    price: {
+    Hsn: true,
+    prices: {
       include: {
         colors: true
       }
     }
+  };
+
+  formatVehicleMaster = (v) => {
+    if (!v) return v;
+    return {
+      ...v,
+      manufacturer: v.Manufacturer,
+      file: v.files,
+      image: v.images,
+      hsn: v.Hsn,
+      price: v.prices
+    };
   };
 
   createVehicleMaster = async (req, res) => {
@@ -70,7 +82,7 @@ class VehicleMasterController {
         response: {
           code: 200,
           message: "Vehicle Master created",
-          data: created
+          data: this.formatVehicleMaster(created)
         }
       });
     } catch (err) {
@@ -90,7 +102,7 @@ class VehicleMasterController {
         response: {
           code: 200,
           message: "vehicle masters fetched",
-          data: vehicles
+          data: vehicles.map(v => this.formatVehicleMaster(v))
         }
       });
     } catch (err) {
@@ -113,7 +125,7 @@ class VehicleMasterController {
           response: {
             code: 200,
             message: "vehicle master fetched",
-            data: vehicle
+            data: this.formatVehicleMaster(vehicle)
           }
         });
       }
@@ -155,7 +167,7 @@ class VehicleMasterController {
         response: {
           code: 200,
           msg: "Vehicle Masters  fetched",
-          data: { count, vehicleMaster: vehicles }
+          data: { count, vehicleMaster: vehicles.map(v => this.formatVehicleMaster(v)) }
         }
       });
     } catch (err) {

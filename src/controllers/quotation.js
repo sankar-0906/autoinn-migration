@@ -21,23 +21,23 @@ class QuotationController {
     },
     customer: {
       include: {
-        contacts: true,
+        CustomerPhone: true,
         address: {
           include: { district: true, state: true, country: true }
         }
       }
     },
-    vehicle: {
+    QuotationVehicle: {
       include: {
         vehicleDetail: {
           include: {
-            manufacturer: true,
-            image: true,
-            price: true
+            Manufacturer: true,
+            images: true,
+            prices: true
           }
         },
-        insuranceType: true,
-        optionalType: true,
+        InsuranceType: true,
+        OptionalType: true,
         color: true,
         price: true,
         financer: true
@@ -45,7 +45,7 @@ class QuotationController {
     },
     executive: {
       include: {
-        profile: {
+        EmployeeProfile_User_profileToEmployeeProfile: {
           include: {
             department: true,
             branch: true
@@ -56,12 +56,63 @@ class QuotationController {
     assignedBranch: true,
     assignedExecutive: {
       include: {
-        profile: {
+        EmployeeProfile_User_profileToEmployeeProfile: {
           include: { department: true }
         }
       }
     },
-    sms: true
+    SmsHistory: true
+  };
+
+  formatQuotation = (q) => {
+    if (!q) return q;
+    const formatted = { ...q };
+    
+    // Map QuotationVehicle to vehicle
+    if (q.QuotationVehicle && q.QuotationVehicle.length > 0) {
+      const qv = q.QuotationVehicle[0];
+      formatted.vehicle = {
+        ...qv,
+        vehicleDetail: qv.vehicleDetail ? {
+          ...qv.vehicleDetail,
+          manufacturer: qv.vehicleDetail.Manufacturer,
+          image: qv.vehicleDetail.images,
+          price: qv.vehicleDetail.prices
+        } : null,
+        insuranceType: qv.InsuranceType,
+        optionalType: qv.OptionalType
+      };
+    } else {
+      formatted.vehicle = null;
+    }
+
+    // Map CustomerPhone to contacts
+    if (q.customer) {
+      formatted.customer = {
+        ...q.customer,
+        contacts: q.customer.CustomerPhone
+      };
+    }
+
+    // Map EmployeeProfile relation to profile
+    if (q.executive) {
+      formatted.executive = {
+        ...q.executive,
+        profile: q.executive.EmployeeProfile_User_profileToEmployeeProfile
+      };
+    }
+
+    if (q.assignedExecutive) {
+      formatted.assignedExecutive = {
+        ...q.assignedExecutive,
+        profile: q.assignedExecutive.EmployeeProfile_User_profileToEmployeeProfile
+      };
+    }
+
+    // Map SmsHistory to sms
+    formatted.sms = q.SmsHistory;
+
+    return formatted;
   };
 
   createQuotation = async (req, res) => {
@@ -118,7 +169,7 @@ class QuotationController {
         response: {
           code: 200,
           message: "Quotation created",
-          data: created
+          data: this.formatQuotation(created)
         }
       });
     } catch (err) {
@@ -141,7 +192,7 @@ class QuotationController {
           response: {
             code: 200,
             message: "Quotation fetched",
-            data: quotation
+            data: this.formatQuotation(quotation)
           }
         });
       }
@@ -184,7 +235,7 @@ class QuotationController {
         response: {
           code: 200,
           msg: "quotations fetched",
-          data: { count, quotation: quotations }
+          data: { count, quotation: quotations.map(q => this.formatQuotation(q)) }
         }
       });
     } catch (err) {
@@ -211,7 +262,7 @@ class QuotationController {
         response: {
           code: 200,
           message: "Assigned executive updated",
-          data: updated
+          data: this.formatQuotation(updated)
         }
       });
     } catch (err) {

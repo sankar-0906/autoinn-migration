@@ -11,7 +11,7 @@ class BookingController {
   bookingInclude = {
     customer: {
       include: {
-        contacts: true,
+        CustomerPhone: true,
         address: { include: { district: true, state: true, country: true } },
         refferedBy: true
       }
@@ -23,23 +23,56 @@ class BookingController {
     },
     vehicle: {
       include: {
-        manufacturer: true,
-        price: true
+        Manufacturer: true,
+        prices: true
       }
     },
     color: true,
-    loan: {
+    Loan: {
       include: {
         financer: true
       }
     },
     executive: {
       include: {
-        profile: true
+        EmployeeProfile_User_profileToEmployeeProfile: true
       }
     },
     quotation: true,
-    exchange: true
+    Exchange: true
+  };
+
+  formatBooking = (b) => {
+    if (!b) return b;
+    const formatted = {
+      ...b,
+      loan: b.Loan,
+      exchange: b.Exchange,
+    };
+
+    if (formatted.customer) {
+      formatted.customer = {
+        ...formatted.customer,
+        contacts: formatted.customer.CustomerPhone
+      };
+    }
+
+    if (formatted.executive) {
+      formatted.executive = {
+        ...formatted.executive,
+        profile: formatted.executive.EmployeeProfile_User_profileToEmployeeProfile
+      };
+    }
+
+    if (formatted.vehicle) {
+      formatted.vehicle = {
+        ...formatted.vehicle,
+        manufacturer: formatted.vehicle.Manufacturer,
+        price: formatted.vehicle.prices
+      };
+    }
+
+    return formatted;
   };
 
   createBooking = async (req, res) => {
@@ -65,7 +98,7 @@ class BookingController {
           color: color ? { connect: { id: color } } : undefined,
           executive: executive ? { connect: { id: executive } } : undefined,
           createdBy: user ? { connect: { id: user } } : undefined,
-          loan: loan ? {
+          Loan: loan ? {
             create: {
               financer: loan.financer ? { connect: { id: loan.financer } } : undefined,
               loanAmount: parseFloat(loan.loanAmount) || 0,
@@ -83,7 +116,7 @@ class BookingController {
         response: {
           code: 200,
           message: "Booking created",
-          data: created
+          data: this.formatBooking(created)
         }
       });
     } catch (err) {
@@ -106,7 +139,7 @@ class BookingController {
           response: {
             code: 200,
             message: "Booking fetched",
-            data: booking
+            data: this.formatBooking(booking)
           }
         });
       }
@@ -148,7 +181,7 @@ class BookingController {
         response: {
           code: 200,
           msg: "bookings fetched",
-          data: { count, booking: bookings }
+          data: { count, booking: bookings.map(b => this.formatBooking(b)) }
         }
       });
     } catch (err) {

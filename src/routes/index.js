@@ -31,6 +31,16 @@ import jobCodeRoutes from "./jobCode.js";
 import estimateRoutes from "./estimate.js";
 import jobInvoiceRoutes from "./jobInvoice.js";
 import saleSpareInvoiceRoutes from "./saleSpareInvoice.js";
+import gstVerifyRoutes from "./gstVerify.js";
+import pdfGenerateRoutes from "./pdfGenerate.js";
+import telecmiRoutes from "./telecmi-webhooks.js";
+import dashboardRoutes from "./dashboard.js";
+import ledgerDetailRoutes from "./ledgerDetail.js";
+import whatsappRoutes from "./whatsup.js";
+import optionsListRoutes from "./optionsList.js";
+import materialIssueRoutes from "./materialIssue.js";
+import stockCheckRoutes from "./stockCheck.js";
+import purchaseReturnRoutes from "./purchaseReturn.js";
 
 const router = Router();
 
@@ -66,5 +76,15 @@ router.use("/jobCode", jobCodeRoutes);
 router.use("/estimate", estimateRoutes);
 router.use("/jobInvoice", jobInvoiceRoutes);
 router.use("/saleSpareInvoice", saleSpareInvoiceRoutes);
+router.use("/gstVerify", gstVerifyRoutes);
+router.use("/pdfGenerate", pdfGenerateRoutes);
+router.use("/telecmi", telecmiRoutes);
+router.use("/dashboard", dashboardRoutes);
+router.use("/ledgerDetail", ledgerDetailRoutes);
+router.use("/whatsapp", whatsappRoutes);
+router.use("/optionsList", optionsListRoutes);
+router.use("/materialIssue", materialIssueRoutes);
+router.use("/stockCheck", stockCheckRoutes);
+router.use("/purchaseReturn", purchaseReturnRoutes);
 
 export default router;
