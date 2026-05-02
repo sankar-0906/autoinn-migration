@@ -7,84 +7,49 @@ import titleCase from "../utils/string.util.js";
  * Maintained with 100% payload parity with autoinn-be.
  */
 class JobOrderController {
-  // Shared include object to mirror the legacy fragment
-  jobOrderInclude = {
-    customer: {
-      include: {
-        contacts: true,
-        address: { include: { district: true, state: true, country: true } }
-      }
-    },
+  // Shared include object for JobOrder
+  fragment = {
     vehicle: {
       include: {
-        vehicle: true,
+        manufacturer: true, // Lowercase in Vehicle model
+        vehicleMaster: {
+          include: { Manufacturer: true } // Uppercase in VehicleMaster model
+        },
         color: true
       }
     },
-    branch: {
-      include: {
-        company: true,
-        address: { include: { district: true, state: true } },
-        contacts: true
-      }
-    },
-    mechanic: {
-      include: {
-        profile: { include: { department: true } }
-      }
-    },
-    complaint: {
-      include: {
-        createdBy: true
-      }
+    customer: { include: { CustomerPhone: true } }, // Fixed nesting: JobOrder.customer is already the Customer model
+    branch: { include: { manufacturer: true } }, // Lowercase in Branch model
+    mechanic: { 
+      include: { 
+        EmployeeProfile_User_profileToEmployeeProfile: { 
+          include: { department: true } 
+        } 
+      } 
     }
   };
 
   createJobOrder = async (req, res) => {
     try {
-      const {
-        jobNo, customerPhone, customerId, vehicleId, branchId,
-        serviceType, dateTime, jobStatus, complaints
-      } = req.body;
-      const user = req.user?.id || req.headers["user-id"];
-
+      const data = req.body;
       const created = await prisma.jobOrder.create({
         data: {
-          jobNo,
-          customerPhone,
-          serviceType,
-          dateTime: dateTime ? new Date(dateTime) : new Date(),
-          jobStatus: jobStatus || "Vehicle Received",
+          ...data,
           createdAt: new Date(),
-          updatedAt: new Date(),
-          customer: customerId ? { connect: { id: customerId } } : undefined,
-          vehicle: vehicleId ? { connect: { id: vehicleId } } : undefined,
-          branch: branchId ? { connect: { id: branchId } } : undefined,
-          createdBy: user ? { connect: { id: user } } : undefined,
-          complaint: complaints && complaints.length > 0 ? {
-            create: complaints.map(c => ({
-              complaint: c.complaint,
-              jobStatus: c.jobStatus || "VEHICLERECEIVED",
-              createdAt: new Date(),
-              updatedAt: new Date(),
-              createdBy: user ? { connect: { id: user } } : undefined
-            }))
-          } : undefined
+          updatedAt: new Date()
         },
-        include: this.jobOrderInclude
+        include: this.fragment
       });
 
       return res.json({
         code: 200,
-        response: {
-          code: 200,
-          message: "Job Order created",
-          data: created
-        }
+        msg: "JobOrder created",
+        data: created
       });
     } catch (err) {
       logger.error("Create job order error:", err);
-      return res.json({ code: 500, msg: "An error occured", error: err.message });
+      console.error("Create JobOrder Error Stack:", err.stack);
+      return res.json({ code: 500, msg: "An error occured" });
     }
   };
 
@@ -93,42 +58,47 @@ class JobOrderController {
       const { id } = req.params;
       const jobOrder = await prisma.jobOrder.findUnique({
         where: { id },
-        include: this.jobOrderInclude
+        include: this.fragment
       });
 
       if (jobOrder) {
         return res.json({
           code: 200,
-          response: {
-            code: 200,
-            message: "Job order fetched",
-            data: jobOrder
-          }
+          response: { data: jobOrder }
         });
       }
-      return res.status(404).json({ code: 404, message: "Not found" });
+      return res.status(404).json({ code: 404, msg: "Not found" });
     } catch (err) {
       logger.error("Get one job order error:", err);
-      return res.json({ code: 500, message: "Server error, Please check the logs" });
+      console.error("GetOne JobOrder Error Stack:", err.stack);
+      return res.json({ code: 500, msg: "An error occured" });
     }
   };
 
   getPage = async (req, res) => {
     try {
-      const { page, size, searchString } = req.body;
+      const { page, size, searchString, status } = req.body;
       const branchIds = req.user?.branch || [];
       const skip = (page - 1) * size;
       const inputValue = searchString || "";
-      const tCased = await titleCase(inputValue);
+
+      let statusFilter = {};
+      if (status === "PENDING") {
+        statusFilter = { jobStatus: { in: ["Vehicle Received", "Estimation"] } };
+      } else if (status === "IN PROGRESS") {
+        statusFilter = { jobStatus: { in: ["Mechanic Allocated", "Spares Ordered", "Work In Progress", "Washing", "Final Inspection", "Material Issued"] } };
+      } else if (status === "COMPLETED") {
+        statusFilter = { jobStatus: { in: ["Gate Pass", "Payment Received", "Invoice", "Proforma Invoice", "PAID"] } };
+      }
 
       const where = {
         branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] },
+        ...statusFilter,
         OR: [
           { jobNo: { contains: inputValue, mode: 'insensitive' } },
-          { customerPhone: { contains: inputValue, mode: 'insensitive' } },
-          { customer: { name: { contains: inputValue, mode: 'insensitive' } } },
-          { customer: { name: { contains: tCased, mode: 'insensitive' } } },
-          { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } }
+          { serviceType: { contains: inputValue, mode: 'insensitive' } },
+          { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } },
+          { customer: { name: { contains: inputValue, mode: 'insensitive' } } }
         ]
       };
 
@@ -138,45 +108,226 @@ class JobOrderController {
           take: size,
           skip,
           orderBy: { createdAt: 'desc' },
-          include: this.jobOrderInclude
+          include: this.fragment
         }),
         prisma.jobOrder.count({ where })
       ]);
 
       return res.json({
         code: 200,
-        response: {
-          code: 200,
-          msg: "Job Orders fetched",
-          data: { count, jobOrder: jobOrders }
-        }
+        response: { count, jobOrder: jobOrders }
       });
     } catch (err) {
       logger.error("Get job order page error:", err);
-      return res.json({ code: 500, msg: "an error occurred" });
+      console.error("GetPage JobOrder Error Stack:", err.stack);
+      return res.json({ code: 500, msg: "An error occured" });
     }
   };
 
   setStatus = async (req, res) => {
     try {
-      const { jobOrderId, type } = req.body;
-      
+      const { id, type } = req.body;
+      const statusMap = {
+        "Estimate": "Estimation",
+        "Estimation Approved": "Estimation Approved",
+        "Material": "Material Issued",
+        "Work In Progress": "Work In Progress",
+        "Washing": "Washing",
+        "Proforma Invoice": "Proforma Invoice",
+        "Final Inspection": "Final Inspection"
+      };
+
       const updated = await prisma.jobOrder.update({
-        where: { id: jobOrderId },
-        data: { jobStatus: type },
-        include: this.jobOrderInclude
+        where: { id },
+        data: { jobStatus: statusMap[type] || type },
+        include: this.fragment
       });
+
+      return res.json({
+        code: 200,
+        msg: "Status updated",
+        data: updated
+      });
+    } catch (err) {
+      logger.error("Set job order status error:", err);
+      console.error("SetStatus JobOrder Error Stack:", err.stack);
+      return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  getDashboardData = async (req, res) => {
+    try {
+      const { timeline, from, to, employee, current } = req.body;
+      const branchIds = req.user?.branch || [];
+      const branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
+
+      const moment = (await import('moment')).default;
+      let fromDate, toDate;
+
+      switch (timeline) {
+        case "today":
+          fromDate = moment().startOf("day").toDate();
+          toDate = moment().endOf("day").toDate();
+          break;
+        case "week":
+          fromDate = moment().startOf("week").toDate();
+          toDate = moment().endOf("week").toDate();
+          break;
+        case "month":
+          fromDate = moment().startOf("month").toDate();
+          toDate = moment().endOf("month").toDate();
+          break;
+        case "date":
+          fromDate = moment(from, "DD-MM-YYYY").startOf("day").toDate();
+          toDate = moment(to, "DD-MM-YYYY").endOf("day").toDate();
+          break;
+        default:
+          fromDate = moment().startOf("day").toDate();
+          toDate = moment().endOf("day").toDate();
+      }
+
+      const whereBase = {
+        branchId: { in: branchArr },
+        createdAt: { gte: fromDate, lte: toDate }
+      };
+
+      // Fix for possible IN (NULL) error
+      let empFilter = employee || current;
+      if (empFilter) {
+        const empArr = (Array.isArray(empFilter) ? empFilter : [empFilter]).filter(e => e !== null);
+        if (empArr.length > 0) {
+          whereBase.mechanicId = { in: empArr };
+        }
+      }
+
+      // Query core data
+      const [
+        allJobs,
+        saleInvoices,
+        upComingServicesRaw,
+        missedServicesRaw
+      ] = await Promise.all([
+        prisma.jobOrder.findMany({
+          where: whereBase,
+          include: this.fragment
+        }),
+        prisma.saleSpareInvoice.findMany({
+          where: {
+            branchId: { in: branchArr },
+            invoiceDate: { gte: fromDate, lte: toDate }
+          },
+          include: {
+            SaleSpareInvoiceItem: { include: { jobCode: true } },
+            jobOrder: { include: { mechanic: { include: { EmployeeProfile_User_profileToEmployeeProfile: { include: { department: true } } } } } }
+          }
+        }),
+        prisma.vehicle.findMany({
+          where: {
+            services: {
+              some: {
+                serviceDate: { gte: new Date(), lte: toDate }
+              }
+            }
+          },
+          include: { services: true }
+        }),
+        prisma.vehicle.findMany({
+          where: {
+            services: {
+              some: {
+                serviceDate: { lt: moment().startOf("day").toDate(), gte: fromDate }
+              }
+            }
+          }
+        })
+      ]);
+
+      // Calculate status counts
+      const counts = {
+        totalJobsCount: allJobs.length,
+        vehicleReceivedCount: allJobs.filter(j => j.jobStatus === "Vehicle Received").length,
+        EstimationCount: allJobs.filter(j => j.jobStatus?.includes("Estimation")).length,
+        MechanicAllocationCount: allJobs.filter(j => j.jobStatus === "Mechanic Allocated").length,
+        WIPCount: allJobs.filter(j => j.jobStatus === "Work In Progress").length,
+        finalInspectionCount: allJobs.filter(j => j.jobStatus === "Final Inspection").length,
+        ReadyforDeliveryCount: allJobs.filter(j => j.jobStatus === "Ready for Delivery").length,
+        deliveredCount: allJobs.filter(j => j.jobStatus === "Delivered").length,
+        freeServiceCount: allJobs.filter(j => j.serviceType?.includes("Free")).length,
+        paidAWServiceCount: allJobs.filter(j => j.serviceType === "Paid (AW)").length,
+        paidUWServiceCount: allJobs.filter(j => j.serviceType === "Paid (UW)").length,
+        totalPaidServiceCount: allJobs.filter(j => ["Paid (UW)", "Paid (AW)", "Accidental", "AMC", "Minor"].includes(j.serviceType)).length,
+        extendedWarrantyCount: allJobs.filter(j => j.serviceType === "Extended Warranty").length,
+        amcCount: allJobs.filter(j => j.serviceType === "AMC").length,
+        minorCount: allJobs.filter(j => j.serviceType === "Minor").length,
+        accidentialCount: allJobs.filter(j => j.serviceType === "Accidental").length,
+      };
+
+      // Calculate Labour and Job Codes
+      let labourCharge = 0;
+      let jobCodes = [];
+      let labourData = [];
+
+      saleInvoices.forEach(inv => {
+        if (inv.jobOrder) {
+          let invLabourTotal = 0;
+          inv.SaleSpareInvoiceItem.forEach(item => {
+            if (item.jobCode) {
+              const amount = parseFloat(item.quantity || 0) * parseFloat(item.unitRate || 0);
+              invLabourTotal += amount;
+              labourCharge += amount;
+              jobCodes.push({
+                jobOrder: inv.jobOrder.jobNo,
+                jobCode: item.jobCode.code,
+                count: amount,
+                total: amount 
+              });
+            }
+          });
+          labourData.push({
+            mechanic: inv.jobOrder.mechanic,
+            total: invLabourTotal
+          });
+        }
+      });
+
+      // Calculate Upcoming and Missed
+      const upComingJobsCount = upComingServicesRaw.length;
+      let upComingFreeJobsCount = 0;
+      let upComingPaidJobsCount = 0;
+
+      upComingServicesRaw.forEach(v => {
+        v.services.forEach(s => {
+          const sDate = moment(s.serviceDate);
+          if (sDate.isSameOrAfter(moment(), 'day') && sDate.isSameOrBefore(moment(toDate), 'day')) {
+            if (s.serviceType === "FREE") upComingFreeJobsCount++;
+            else if (s.serviceType === "PAID") upComingPaidJobsCount++;
+          }
+        });
+      });
+
+      const finalData = {
+        ...counts,
+        upComingJobsCount,
+        upComingFreeJobsCount,
+        upComingPaidJobsCount,
+        missedOppurturnitiesCount: missedServicesRaw.length, 
+        labourCharge,
+        jobOrders: allJobs,
+        labourData,
+        jobCodes
+      };
 
       return res.json({
         code: 200,
         response: {
           code: 200,
-          message: "Status updated",
-          data: updated
+          msg: "Data fetched",
+          data: finalData
         }
       });
     } catch (err) {
-      logger.error("Set status error:", err);
+      logger.error("Get dashboard data error:", err);
+      console.error("Dashboard Error Stack:", err.stack);
       return res.json({ code: 500, msg: "An error occured" });
     }
   };

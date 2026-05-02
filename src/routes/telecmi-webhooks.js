@@ -7,6 +7,7 @@ const router = Router();
 // Apply auth middleware
 router.use(auth);
 
+router.post("/phoneDialHistory", controller.getPhoneDialHistory);
 router.post("/callhistory/:phoneNumber", controller.getCallHistoryForNumber);
 router.get("/teleUser", controller.getAllTeleUsers);
 router.post("/teleUser", controller.createUser);

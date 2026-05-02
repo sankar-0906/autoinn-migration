@@ -41,6 +41,13 @@ import optionsListRoutes from "./optionsList.js";
 import materialIssueRoutes from "./materialIssue.js";
 import stockCheckRoutes from "./stockCheck.js";
 import purchaseReturnRoutes from "./purchaseReturn.js";
+import accessoriesRoutes from "./accessories.js";
+import departmentRoutes from "./department.js";
+import subDealerRoutes from "./subDealer.js";
+import smsRoutes from "./sms.js";
+import sendSmsRoutes from "./sendSms.js";
+import promotionsRoutes from "./promotions.js";
+import idGenerateRoutes from "./idGenerate.js";
 
 const router = Router();
 
@@ -71,7 +78,7 @@ router.use("/purchaseInvoice", purchaseInvoiceRoutes);
 router.use("/purchaseSpareInvoice", purchaseSpareInvoiceRoutes);
 router.use("/saleInvoice", saleInvoiceRoutes);
 router.use("/saleRegister", saleRegisterRoutes);
-router.use("/soldVehicle", soldVehicleRoutes);
+router.use("/vehicle", soldVehicleRoutes);
 router.use("/jobCode", jobCodeRoutes);
 router.use("/estimate", estimateRoutes);
 router.use("/jobInvoice", jobInvoiceRoutes);
@@ -86,5 +93,12 @@ router.use("/optionsList", optionsListRoutes);
 router.use("/materialIssue", materialIssueRoutes);
 router.use("/stockCheck", stockCheckRoutes);
 router.use("/purchaseReturn", purchaseReturnRoutes);
+router.use("/accessories", accessoriesRoutes);
+router.use("/department", departmentRoutes);
+router.use("/subDealer", subDealerRoutes);
+router.use("/sms", smsRoutes);
+router.use("/sendSms", sendSmsRoutes);
+router.use("/promotions", promotionsRoutes);
+router.use("/idGenerate", idGenerateRoutes);
 
 export default router;

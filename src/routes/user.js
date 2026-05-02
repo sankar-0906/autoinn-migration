@@ -10,6 +10,8 @@ router.post("/login", controller.login);
 // Protected routes
 router.use(auth);
 
+router.get("/", controller.getAllUsers);
+router.get("/count", controller.getUsersCount);
 router.get("/currentUser", controller.currentUser);
 router.get("/department", controller.department);
 router.get("/branch", controller.branch);

@@ -8,11 +8,29 @@ import logger from "../config/logger.config.js";
 class DashboardController {
   getData = async (req, res) => {
     try {
-      const { fromDate, toDate, executiveIds = [] } = req.body;
-      const start = fromDate ? new Date(fromDate) : new Date(new Date().setHours(0,0,0,0));
-      const end = toDate ? new Date(toDate) : new Date(new Date().setHours(23,59,59,999));
+      // Use 'from', 'to', and 'employee' as per frontend Dashboard/index.jsx
+      const { from, to, employee, current } = req.body;
+      const moment = (await import('moment')).default;
+      
+      let start, end;
+      if (from) {
+        start = moment(from, "DD-MM-YYYY").startOf("day").toDate();
+      } else {
+        start = moment().startOf("month").startOf("day").toDate();
+      }
 
-      const queryExecs = executiveIds.length > 0 ? executiveIds : undefined;
+      if (to) {
+        end = moment(to, "DD-MM-YYYY").endOf("day").toDate();
+      } else {
+        end = moment().endOf("day").toDate();
+      }
+
+      // Legacy logic: if employee list is empty, use current user id
+      let empList = employee;
+      if (Array.isArray(empList) && empList.length > 0 && empList[0] === null) {
+        empList = null;
+      }
+      const queryExecs = (Array.isArray(empList) && empList.length > 0) ? empList : (current ? [current] : undefined);
 
       // Base filters
       const baseFilter = {
@@ -31,7 +49,7 @@ class DashboardController {
         walkInCount,
         callEnquiryCount,
         referralCount,
-        quotations,
+        quotationsRaw,
         bookings
       ] = await Promise.all([
         prisma.quotation.count({ where: baseFilter }),
@@ -40,30 +58,36 @@ class DashboardController {
           where: { ...baseFilter, bookingStatus: "SOLD" }
         }),
         prisma.quotation.count({
-          where: { ...baseFilter, enquiryType: "HOT" }
+          where: { ...baseFilter, enquiryType: { equals: "HOT", mode: 'insensitive' } }
         }),
         prisma.quotation.count({
-          where: { ...baseFilter, enquiryType: "COLD" }
+          where: { ...baseFilter, enquiryType: { equals: "COLD", mode: 'insensitive' } }
         }),
         prisma.quotation.count({
-          where: { ...baseFilter, enquiryType: "WARM" }
+          where: { ...baseFilter, enquiryType: { equals: "WARM", mode: 'insensitive' } }
         }),
         prisma.quotation.count({
-          where: { ...baseFilter, leadSource: "WALK IN" }
+          where: { ...baseFilter, leadSource: { equals: "WALK IN", mode: 'insensitive' } }
         }),
         prisma.quotation.count({
-          where: { ...baseFilter, leadSource: "CALL ENQUIRY" }
+          where: { ...baseFilter, leadSource: { equals: "CALL ENQUIRY", mode: 'insensitive' } }
         }),
         prisma.quotation.count({
-          where: { ...baseFilter, leadSource: "REFERRAL" }
+          where: { ...baseFilter, leadSource: { equals: "REFERRAL", mode: 'insensitive' } }
         }),
         prisma.quotation.findMany({
           where: baseFilter,
           take: 5,
           orderBy: { createdAt: 'desc' },
           include: {
-            customer: true,
-            vehicle: { include: { vehicleDetail: true } }
+            customer: { include: { CustomerPhone: true } },
+            executive: { include: { EmployeeProfile_User_profileToEmployeeProfile: true } },
+            assignedExecutive: { include: { EmployeeProfile_User_profileToEmployeeProfile: true } },
+            QuotationVehicle: { 
+              include: { 
+                vehicleDetail: { include: { Manufacturer: true } } 
+              } 
+            }
           }
         }),
         prisma.booking.findMany({
@@ -71,11 +95,23 @@ class DashboardController {
           take: 5,
           orderBy: { createdAt: 'desc' },
           include: {
-            customer: true,
-            vehicle: true
+            customer: { include: { CustomerPhone: true } },
+            vehicle: { include: { Manufacturer: true } },
+            executive: { include: { EmployeeProfile_User_profileToEmployeeProfile: true } },
+            color: true,
+            branch: true
           }
         })
       ]);
+
+      // Map QuotationVehicle to vehicle to match frontend expectations
+      const quotations = quotationsRaw.map(q => {
+        const { QuotationVehicle, ...rest } = q;
+        return {
+          ...rest,
+          vehicle: QuotationVehicle || []
+        };
+      });
 
       // Wrap in the same structure as legacy DashboardRoutes + Controller
       return res.json({
@@ -109,7 +145,8 @@ class DashboardController {
       });
     } catch (err) {
       logger.error("Dashboard stats error:", err);
-      return res.json({ code: 500, msg: "An error occurred" });
+      console.error("Dashboard Stats Error Stack:", err.stack);
+      return res.json({ code: 500, msg: "An error occured" });
     }
   };
 
@@ -134,6 +171,7 @@ class DashboardController {
         code: 200,
         response: {
           code: 200,
+          msg: "Users fetched",
           data: users.map(u => ({
             id: u.id,
             phone: u.phone,
@@ -143,7 +181,8 @@ class DashboardController {
       });
     } catch (err) {
       logger.error("Dashboard users error:", err);
-      return res.json({ code: 500, msg: "An error occurred" });
+      console.error("Dashboard Users Error Stack:", err.stack);
+      return res.json({ code: 500, msg: "An error occured" });
     }
   };
 }

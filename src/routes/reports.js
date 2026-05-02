@@ -8,6 +8,9 @@ const router = Router();
 router.use(auth);
 
 router.post("/vehicleCategory", controller.getCategoryOfVehicleReporting);
+router.post("/vehicleService", controller.getVehicleService);
+router.post("/vehicleServiceData", controller.getServiceDataList);
+router.post("/partCharges", controller.partCharges);
 router.post("/dashboard", controller.getDashboardData);
 
 export default router;

@@ -7,10 +7,10 @@ import titleCase from "../utils/string.util.js";
  * Maintained with 100% payload parity with autoinn-be.
  */
 class SoldVehicleController {
-  // Shared include object for SoldVehicle
+  // Shared include object for Vehicle (legacy SoldVehicle)
   soldInclude = {
-    vehicle: {
-      include: { manufacturer: true, file: true }
+    vehicleMaster: {
+      include: { Manufacturer: true, files: true }
     },
     customer: {
       include: { customer: true }
@@ -25,7 +25,7 @@ class SoldVehicleController {
 
   getAll = async (req, res) => {
     try {
-      const vehicles = await prisma.soldVehicle.findMany({
+      const vehicles = await prisma.vehicle.findMany({
         include: this.soldInclude
       });
 
@@ -42,7 +42,7 @@ class SoldVehicleController {
   getOne = async (req, res) => {
     try {
       const { id } = req.params;
-      const vehicle = await prisma.soldVehicle.findUnique({
+      const vehicle = await prisma.vehicle.findUnique({
         where: { id },
         include: this.soldInclude
       });
@@ -53,17 +53,16 @@ class SoldVehicleController {
           response: vehicle
         });
       }
-      return res.status(404).json({ code: 404, message: "Not found" });
+      return res.status(404).json({ code: 404, msg: "Not found" });
     } catch (err) {
       logger.error("Get one sold vehicle error:", err);
-      return res.json({ code: 500, message: "Server error, Please check the logs" });
+      return res.json({ code: 500, msg: "Server error, Please check the logs" });
     }
   };
 
   getPage = async (req, res) => {
     try {
       const { page, size, searchString } = req.body;
-      const branchIds = req.user?.branch || [];
       const skip = (page - 1) * size;
       const inputValue = searchString || "";
 
@@ -77,14 +76,14 @@ class SoldVehicleController {
       };
 
       const [vehicles, count] = await Promise.all([
-        prisma.soldVehicle.findMany({
+        prisma.vehicle.findMany({
           where,
           take: size,
           skip,
           orderBy: { createdAt: 'desc' },
           include: this.soldInclude
         }),
-        prisma.soldVehicle.count({ where })
+        prisma.vehicle.count({ where })
       ]);
 
       return res.json({
@@ -100,7 +99,7 @@ class SoldVehicleController {
   getByRegNum = async (req, res) => {
     try {
       const { id } = req.params; // registerNo
-      const vehicle = await prisma.soldVehicle.findFirst({
+      const vehicle = await prisma.vehicle.findFirst({
         where: { registerNo: id },
         include: this.soldInclude
       });
@@ -111,7 +110,7 @@ class SoldVehicleController {
       });
     } catch (err) {
       logger.error("Get by reg num error:", err);
-      return res.json({ code: 500, message: "Server error" });
+      return res.json({ code: 500, msg: "Server error" });
     }
   };
 }

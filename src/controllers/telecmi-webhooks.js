@@ -6,6 +6,34 @@ import logger from "../config/logger.config.js";
  * Handles incoming/outgoing call logging and call history.
  */
 class TeleCMIController {
+  getPhoneDialHistory = async (req, res) => {
+    try {
+      const { direction, status, fromDate, toDate, limit, offset } = req.body;
+
+      const history = await prisma.teleCMICallHistory.findMany({
+        where: {
+          direction: direction || undefined,
+          status: status || undefined,
+          createdAt: {
+            gte: fromDate ? new Date(fromDate) : undefined,
+            lte: toDate ? new Date(toDate) : undefined
+          }
+        },
+        take: parseInt(limit) || 50,
+        skip: parseInt(offset) || 0,
+        orderBy: { updatedAt: 'desc' }
+      });
+
+      return res.json({
+        code: 200,
+        data: history
+      });
+    } catch (err) {
+      logger.error("Get phone dial history error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
   getCallHistoryForNumber = async (req, res) => {
     try {
       const { phoneNumber } = req.params;
@@ -35,7 +63,7 @@ class TeleCMIController {
       });
     } catch (err) {
       logger.error("Get call history error:", err);
-      return res.json({ code: 500, msg: "An error occurred", err: err.message });
+      return res.json({ code: 500, msg: "An error occurred" });
     }
   };
 
@@ -49,7 +77,7 @@ class TeleCMIController {
       });
     } catch (err) {
       logger.error("Get all tele users error:", err);
-      return res.json({ code: 500, msg: "An error occurred", err: err.message });
+      return res.json({ code: 500, msg: "An error occurred" });
     }
   };
 
@@ -72,7 +100,7 @@ class TeleCMIController {
       });
     } catch (err) {
       logger.error("Create tele user error:", err);
-      return res.json({ code: 500, msg: "An error occurred", err: err.message });
+      return res.json({ code: 500, msg: "An error occurred" });
     }
   };
 

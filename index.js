@@ -3,19 +3,24 @@ import express from "express";
 import helmet from "helmet";
 import cors from "cors";
 import compression from "compression";
+import { createServer } from "http";
 import { env } from "./src/config/env.config.js";
 import logger from "./src/config/logger.config.js";
 import prisma from "./src/config/prisma.config.js";
 import apiRoutes from "./src/routes/index.js";
+import { setupTeleCMISocket } from "./src/config/webSocket.js";
 
 const app = express();
+const httpServer = createServer(app);
 
 // --- SECURITY & MIDDLEWARE ---
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false,
+}));
 app.use(cors());
 app.use(compression());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: "100mb" }));
+app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 
 // --- API ROUTES ---
 app.use("/api", apiRoutes);
@@ -47,11 +52,13 @@ app.use((err, req, res, next) => {
   });
 });
 
+// --- SOCKET INITIALIZATION ---
+setupTeleCMISocket(httpServer);
+
 // --- STARTUP ---
 const start = async () => {
   try {
-    // Port is defined in env.config.js (default 4004)
-    app.listen(env.PORT, () => {
+    httpServer.listen(env.PORT, () => {
       logger.info(`🚀 AutoInn Modern Backend running on port ${env.PORT}`);
     });
   } catch (error) {

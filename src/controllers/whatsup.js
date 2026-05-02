@@ -1,76 +1,182 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
+import axios from "axios";
 
-/**
- * Controller for WhatsApp messaging and templates.
- */
+
 class WhatsappController {
-  getAll = async (req, res) => {
+  constructor() {
+    this.whatsappUid = process.env.WHATSAPP_UID;
+    this.whatsappPassword = process.env.WHATSAPP_PASSWORD;
+    this.whatsappAccountUid = process.env.WHATSAPP_ACCOUNT_UID;
+    this.whatsappSource = process.env.WHATSAPP_SOURCE;
+  }
+
+  getAll = async () => {
     try {
-      const templates = await prisma.whatsappTemplate.findMany({
-        orderBy: { createdAt: 'desc' }
-      });
-      return res.json({
+      const templates = await prisma.whatsappTemplate.findMany();
+      return {
         code: 200,
-        response: templates
-      });
+        message: "Whatsapp Template fetched successfully",
+        data: templates,
+      };
     } catch (err) {
-      logger.error("WhatsApp templates error:", err);
-      return res.json({ code: 500, msg: "An error occurred" });
+      logger.error("CONTROLLER.WHATSAPP.getAll", err);
+      throw { code: 500, message: "error getting Whatsapp Templates", data: err };
     }
   };
 
-  getChatList = async (req, res) => {
+  checkStatus = async (uid) => {
     try {
-      const chats = await prisma.whatsappChat.findMany({
-        include: {
-          WhatsappMessageList: {
-            take: 1,
-            orderBy: { createdAt: 'desc' }
-          }
+      const response = await axios.get(`https://api.karix.io/whatsapp/template/${uid}`, {
+        params: { 'api-version': '2.0' },
+        auth: {
+          username: this.whatsappUid,
+          password: this.whatsappPassword,
         },
-        orderBy: { updatedAt: 'desc' }
       });
-      return res.json({
-        code: 200,
-        msg: chats
-      });
+      if (response.status === 200 && response.data.data) {
+        return { status: response.data.data.status };
+      }
+      return { status: "unknown" };
     } catch (err) {
-      logger.error("WhatsApp chat list error:", err);
-      return res.json({ code: 500, msg: "An error occurred" });
+      logger.error("CONTROLLER.WHATSAPP.checkStatus", err);
+      throw { code: 500, message: "Error checking template status" };
     }
   };
 
-  getChatMessage = async (req, res) => {
+  createTemplate = async (data) => {
     try {
-      const { id } = req.params;
-      const chat = await prisma.whatsappChat.findUnique({
-        where: { id },
-        include: {
-          WhatsappMessageList: {
-            orderBy: { createdAt: 'asc' }
-          }
+      const { name, text, legends, module, submodule } = data;
+      // Karix API call logic would go here if needed for dynamic creation
+      const created = await prisma.whatsappTemplate.create({
+        data: {
+          name,
+          text: text.replace(/\n/g, ""),
+          legends,
+          module,
+          submodule,
+          status: "pending",
+          createdAt: new Date()
         }
       });
-      return res.json({
-        code: 200,
-        msg: chat
-      });
+      return { code: 200, message: "Whatsapp Template created", data: created };
     } catch (err) {
-      logger.error("WhatsApp chat message error:", err);
-      return res.json({ code: 500, msg: "An error occurred" });
+      logger.error("CONTROLLER.WHATSAPP.createTemplate", err);
+      throw { code: 500, message: "error creating template" };
     }
   };
 
-  fetchProfileByNumber = async (req, res) => {
+  updateTemplate = async (id, data) => {
     try {
-      // Mocking profile fetch logic
-      return res.json({
-        code: 200,
-        response: { name: "Business Profile", about: "AutoInn Service" }
+      const { name, text, legends, module, submodule, status } = data;
+      const updated = await prisma.whatsappTemplate.update({
+        where: { id },
+        data: {
+          name,
+          text: text.replace(/\n/g, ""),
+          legends,
+          module,
+          submodule,
+          status: status || "pending",
+          updatedAt: new Date()
+        }
+      });
+      return { code: 200, message: "Whatsapp Template updated", data: updated };
+    } catch (err) {
+      logger.error("CONTROLLER.WHATSAPP.updateTemplate", err);
+      throw { code: 500, message: "error updating template" };
+    }
+  };
+
+  deleteTemplate = async (id) => {
+    try {
+      await prisma.whatsappTemplate.delete({ where: { id } });
+      return { code: 200, message: "Whatsapp Template deleted" };
+    } catch (err) {
+      logger.error("CONTROLLER.WHATSAPP.deleteTemplate", err);
+      throw { code: 500, message: "error deleting template" };
+    }
+  };
+
+  getChatList = async () => {
+    try {
+      const data = await prisma.whatsappChat.findMany({
+        orderBy: { updatedAt: "desc" }
+      });
+      const update1 = data.filter(i => i.notification === true);
+      const update2 = data.filter(i => i.notification !== true);
+      const merge = update1.concat(update2);
+      return { code: 200, data: merge };
+    } catch (err) {
+      logger.error("CONTROLLER.WHATSAPP.getChatList", err);
+      throw { code: 500, message: "Error fetching chat list" };
+    }
+  };
+
+  getChatMessage = async (id) => {
+    try {
+      const data = await prisma.whatsappChat.findUnique({
+        where: { id },
+        include: { text: true }
+      });
+      await this.clearNotificationCount(id);
+      return { code: 200, data };
+    } catch (err) {
+      logger.error("CONTROLLER.WHATSAPP.getChatMessage", err);
+      throw { code: 500, message: "Error fetching chat message" };
+    }
+  };
+
+  clearNotificationCount = async (id) => {
+    try {
+      await prisma.whatsappChat.update({
+        where: { id },
+        data: { notification: false, count: 0 }
       });
     } catch (err) {
-      return res.json({ code: 500, msg: "An error occurred" });
+      logger.error("CONTROLLER.WHATSAPP.clearNotificationCount", err);
+    }
+  };
+
+  fetchProfileByNumber = async () => {
+    try {
+      const phone = this.whatsappSource.replace("+", "");
+      const response = await axios.get(`https://api.karix.io/whatsapp/profile/business/${phone}/`, {
+        params: { 'api-version': '2.0' },
+        auth: {
+          username: this.whatsappUid,
+          password: this.whatsappPassword,
+        },
+      });
+      if (response.status === 200) {
+        const profilePicture = await this.fetchProfilePicture(phone);
+        const responseData = response.data.data;
+        if (profilePicture && profilePicture.data && profilePicture.data.data) {
+          responseData["image"] = profilePicture.data.data["url"];
+        }
+        return { code: 200, data: responseData };
+      }
+    } catch (err) {
+      logger.error("CONTROLLER.WHATSAPP.fetchProfileByNumber", err);
+      throw { code: 500, message: "Error fetching profile" };
+    }
+  };
+
+  fetchProfilePicture = async (phone) => {
+    try {
+      const response = await axios.get(`https://api.karix.io/whatsapp/profile/photo/${phone}/`, {
+        params: { 'api-version': '2.0' },
+        auth: {
+          username: this.whatsappUid,
+          password: this.whatsappPassword,
+        },
+      });
+      if (response.status === 200) {
+        return { code: 200, data: response.data };
+      }
+    } catch (err) {
+      logger.error("CONTROLLER.WHATSAPP.fetchProfilePicture", err);
+      return null;
     }
   };
 }

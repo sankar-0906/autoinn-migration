@@ -29,7 +29,7 @@ class UserController {
         },
         branch: {
           include: {
-            manufacturer: true,
+            manufacturer: true, // Lowercase in Branch model
             company: true
           }
         },
@@ -47,7 +47,7 @@ class UserController {
 
   // Shared include object to mirror the legacy branches fragment
   branchInclude = {
-    manufacturer: true,
+    manufacturer: true, // Lowercase in Branch model
     address: {
       include: {
         district: true,
@@ -137,7 +137,7 @@ class UserController {
           code: 200,
           response: {
             code: 403,
-            message: "User does not exist!",
+            msg: "User does not exist!",
             data: null,
           }
         });
@@ -149,7 +149,7 @@ class UserController {
           code: 200,
           response: {
             code: 403,
-            message: "Password Does not match",
+            msg: "Password Does not match",
             data: null,
           }
         });
@@ -160,7 +160,7 @@ class UserController {
           code: 200,
           response: {
             code: 404,
-            message: "This user is inactive",
+            msg: "This user is inactive",
             data: null
           }
         });
@@ -187,7 +187,7 @@ class UserController {
         code: 200,
         response: {
           code: 200,
-          message: "USER_LOGGED_IN",
+          msg: "USER_LOGGED_IN",
           data: {
             user: {
               ...user,
@@ -220,7 +220,7 @@ class UserController {
         code: 200,
         response: {
           code: 200,
-          message: "user fetched",
+          msg: "user fetched",
           data: this.formatUser(response),
         }
       });
@@ -230,12 +230,44 @@ class UserController {
     }
   };
 
+  getUsersCount = async (req, res) => {
+    try {
+      const count = await prisma.user.count();
+      return res.json({
+        code: 200,
+        msg: "users fetched",
+        count: count
+      });
+    } catch (err) {
+      logger.error("Get user count error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
+  getAllUsers = async (req, res) => {
+    try {
+      const users = await prisma.user.findMany({
+        include: this.userInclude
+      });
+      return res.json({
+        code: 200,
+        msg: "user fetched",
+        data: {
+          users: users.map(u => this.formatUser(u))
+        }
+      });
+    } catch (err) {
+      logger.error("Get all users error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
   department = async (req, res) => {
     try {
       const dept = await prisma.department.findMany();
       return res.json({
         code: 200,
-        message: "departments fetched",
+        msg: "departments fetched",
         data: dept,
       });
     } catch (err) {
@@ -257,7 +289,7 @@ class UserController {
 
       return res.json({
         code: 200,
-        message: "branches fetched",
+        msg: "branches fetched",
         data: branches.map(b => this.formatBranch(b)),
       });
     } catch (err) {
@@ -277,7 +309,7 @@ class UserController {
       if (userData) {
         return res.json({
           code: 200,
-          message: "Role access fetched",
+          msg: "Role access fetched",
           data: this.formatDepartment(userData.EmployeeProfile_User_profileToEmployeeProfile?.department),
         });
       }
@@ -298,7 +330,7 @@ class UserController {
 
       return res.json({
         code: 200,
-        message: "Status updated successfully",
+        msg: "Status updated successfully",
         data: update
       });
     } catch (err) {

@@ -9,16 +9,20 @@ import titleCase from "../utils/string.util.js";
 class SaleSpareInvoiceController {
   // Shared include object for SaleSpareInvoice
   invoiceInclude = {
-    customer: {
-      include: { contacts: true }
+    partyName: { // Fixed: relation name is partyName in SaleSpareInvoice model
+      include: { CustomerPhone: true } // Fixed: CustomerPhone relation in Customer model
     },
-    branch: true,
-    saleSpareItemInvoice: {
+    branch: {
+      include: { manufacturer: true } // Lowercase in Branch model
+    },
+    SaleSpareInvoiceItem: { // Fixed: relation name matches model name in plural
       include: {
         partNumber: true,
-        hsn: true
+        hsn: true,
+        jobCode: true
       }
-    }
+    },
+    jobOrder: true
   };
 
   createSaleSpareInvoice = async (req, res) => {
@@ -48,9 +52,9 @@ class SaleSpareInvoiceController {
           totalInvoice: parseFloat(totalInvoice) || 0,
           createdAt: new Date(),
           updatedAt: new Date(),
-          customer: customer ? { connect: { id: customer } } : undefined,
+          partyName: customer ? { connect: { id: customer } } : undefined,
           createdBy: user ? { connect: { id: user } } : undefined,
-          saleSpareItemInvoice: saleSpareItemInvoice && saleSpareItemInvoice.length > 0 ? {
+          SaleSpareInvoiceItem: saleSpareItemInvoice && saleSpareItemInvoice.length > 0 ? {
             create: saleSpareItemInvoice.map(item => ({
               partNumber: { connect: { id: item.partNumber } },
               partName: item.partName,
@@ -79,7 +83,7 @@ class SaleSpareInvoiceController {
       });
     } catch (err) {
       logger.error("Create sale spare invoice error:", err);
-      return res.json({ code: 500, msg: "An error occured", err });
+      return res.json({ code: 500, msg: "An error occured" });
     }
   };
 
@@ -97,10 +101,10 @@ class SaleSpareInvoiceController {
           response: invoice
         });
       }
-      return res.status(404).json({ code: 404, message: "Not found" });
+      return res.status(404).json({ code: 404, msg: "Not found" });
     } catch (err) {
       logger.error("Get one sale spare invoice error:", err);
-      return res.json({ code: 500, message: "Server error" });
+      return res.json({ code: 500, msg: "Server error" });
     }
   };
 
@@ -113,7 +117,7 @@ class SaleSpareInvoiceController {
       const where = {
         OR: [
           { invoiceNumber: { contains: inputValue, mode: 'insensitive' } },
-          { customer: { name: { contains: inputValue, mode: 'insensitive' } } }
+          { partyName: { name: { contains: inputValue, mode: 'insensitive' } } }
         ]
       };
 
