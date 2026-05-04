@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import moment from "moment";
 
 /**
  * Controller for Vehicle Master operations.
@@ -16,7 +17,7 @@ class VehicleMasterController {
     Hsn: true,
     prices: {
       include: {
-        colors: true
+        VehicleColor: true
       }
     }
   };
@@ -29,7 +30,17 @@ class VehicleMasterController {
       file: v.files,
       image: v.images,
       hsn: v.Hsn,
-      price: v.prices
+      price: (v.prices || []).map(p => ({
+        ...p,
+        colors: (p.VehicleColor || []).map(c => {
+          const colorObj = v.images?.find(img => img.id === c.colorId) || null;
+          return {
+            ...c,
+            color: colorObj,
+            imageDetails: colorObj ? [colorObj] : []
+          };
+        })
+      }))
     };
   };
 
@@ -38,7 +49,6 @@ class VehicleMasterController {
       const data = req.body;
       const user = req.user?.id || req.headers["user-id"];
       
-      // Support both parsed and direct data objects as per legacy
       const payload = data.dataObj ? (typeof data.dataObj === 'string' ? JSON.parse(data.dataObj) : data.dataObj) : data;
 
       const {
@@ -176,34 +186,92 @@ class VehicleMasterController {
     }
   };
 
+  /**
+   * man/:id endpoint - getModels with price filtering
+   */
   getModel = async (req, res) => {
     try {
       const { id } = req.params; // Manufacturer ID
-      const { searchString } = req.query;
+      const { onlyAvailable, searchString } = req.query;
       const inputValue = searchString || "";
 
-      const models = await prisma.vehicleMaster.findMany({
-        where: {
-          manufacturerId: id,
-          modelName: { contains: inputValue, mode: 'insensitive' }
-        },
-        select: {
-          id: true,
-          modelName: true,
-          modelCode: true
-        }
+      const where = {
+        manufacturer: id,
+        vehicleStatus: onlyAvailable && parseInt(onlyAvailable) === 1 ? "AVAILABLE" : undefined,
+        OR: [
+          { modelName: { contains: inputValue, mode: 'insensitive' } },
+          { modelCode: { contains: inputValue, mode: 'insensitive' } }
+        ]
+      };
+
+      let models = await prisma.vehicleMaster.findMany({
+        where,
+        include: this.vehicleMasterInclude
+      });
+
+      // Price filtering logic as per legacy
+      const currentDate = moment().startOf('day');
+      models = models.map(v => this.formatVehicleMaster(v)).filter(v => {
+        if (!v.price || v.price.length === 0) return false;
+        
+        v.price = v.price.filter(p => {
+          const validFrom = moment(p.priceValidFrom).startOf('day');
+          const validTill = p.priceValidTill ? moment(p.priceValidTill).startOf('day') : null;
+          
+          if (validTill) return false; // Legacy logic: splice if validTill exists in getModel
+          return validFrom.isSameOrBefore(currentDate);
+        });
+
+        return v.price.length > 0;
       });
 
       return res.json({
         code: 200,
         response: {
           code: 200,
-          message: "Models fetched",
+          message: "vehicle models fetched",
           data: models
         }
       });
     } catch (err) {
       logger.error("Get models error:", err);
+      return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  /**
+   * manAll/:id endpoint - getModels without strict price filtering
+   */
+  getAllModel = async (req, res) => {
+    try {
+      const { id } = req.params; // Manufacturer ID
+      const { onlyAvailable, searchString } = req.query;
+      const inputValue = searchString || "";
+
+      const where = {
+        manufacturer: id,
+        vehicleStatus: onlyAvailable && parseInt(onlyAvailable) === 1 ? "AVAILABLE" : undefined,
+        OR: [
+          { modelName: { contains: inputValue, mode: 'insensitive' } },
+          { modelCode: { contains: inputValue, mode: 'insensitive' } }
+        ]
+      };
+
+      const models = await prisma.vehicleMaster.findMany({
+        where,
+        include: this.vehicleMasterInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "vehicle models fetched",
+          data: models.map(v => this.formatVehicleMaster(v))
+        }
+      });
+    } catch (err) {
+      logger.error("Get all models error:", err);
       return res.json({ code: 500, msg: "An error occured" });
     }
   };

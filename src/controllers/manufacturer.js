@@ -9,7 +9,7 @@ import titleCase from "../utils/string.util.js";
 class ManufacturerController {
   // Shared include object to mirror the legacy fragment
   manufacturerInclude = {
-    address: {
+    Address: {
       include: {
         district: true,
         state: true,
@@ -35,7 +35,7 @@ class ManufacturerController {
           vehicleManufacturer,
           createdAt: new Date(),
           updatedAt: new Date(),
-          address: address ? {
+          Address: address ? {
             create: {
               line1: address.line1,
               line2: address.line2,
@@ -135,7 +135,7 @@ class ManufacturerController {
           email,
           vehicleManufacturer,
           updatedAt: new Date(),
-          address: address ? {
+          Address: address ? {
             create: {
               line1: address.line1,
               line2: address.line2,

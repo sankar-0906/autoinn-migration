@@ -2,6 +2,8 @@ import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 
+import IdGenerateController from "./idGenerate.js";
+
 /**
  * Controller for Sale Invoice operations.
  * Maintained with 100% payload parity with autoinn-be.
@@ -62,6 +64,9 @@ class SaleInvoiceController {
         },
         include: this.invoiceInclude
       });
+
+      // Increment ID counter
+      await IdGenerateController.incrementId("VEHICLESALEINVOICE", branch);
 
       return res.json({
         code: 200,

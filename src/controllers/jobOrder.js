@@ -2,6 +2,8 @@ import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 
+import IdGenerateController from "./idGenerate.js";
+
 /**
  * Controller for Job Order operations.
  * Maintained with 100% payload parity with autoinn-be.
@@ -41,6 +43,9 @@ class JobOrderController {
         include: this.fragment
       });
 
+      // Increment ID counter
+      await IdGenerateController.incrementId("JOBORDER", data.branchId || data.branch);
+
       return res.json({
         code: 200,
         msg: "JobOrder created",
@@ -64,7 +69,11 @@ class JobOrderController {
       if (jobOrder) {
         return res.json({
           code: 200,
-          response: { data: jobOrder }
+          response: { 
+             code: 200,
+             msg: "JobOrder fetched",
+             data: jobOrder 
+          }
         });
       }
       return res.status(404).json({ code: 404, msg: "Not found" });
@@ -115,7 +124,11 @@ class JobOrderController {
 
       return res.json({
         code: 200,
-        response: { count, jobOrder: jobOrders }
+        response: { 
+          code: 200,
+          msg: "JobOrders fetched",
+          data: { count, jobOrder: jobOrders } 
+        }
       });
     } catch (err) {
       logger.error("Get job order page error:", err);
@@ -145,8 +158,11 @@ class JobOrderController {
 
       return res.json({
         code: 200,
-        msg: "Status updated",
-        data: updated
+        response: {
+          code: 200,
+          msg: "Status updated",
+          data: updated
+        }
       });
     } catch (err) {
       logger.error("Set job order status error:", err);
@@ -329,6 +345,79 @@ class JobOrderController {
       logger.error("Get dashboard data error:", err);
       console.error("Dashboard Error Stack:", err.stack);
       return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  historyVehicleJobs = async (req, res) => {
+    try {
+      const { id } = req.params; // Vehicle ID
+      const [jobOrders, invoices] = await Promise.all([
+        prisma.jobOrder.findMany({
+          where: { vehicleId: id },
+          orderBy: { createdAt: 'desc' },
+          include: this.fragment
+        }),
+        prisma.saleSpareInvoice.findMany({
+          where: { jobOrder: { vehicleId: id } },
+          include: {
+            SaleSpareInvoiceItem: { 
+              include: { 
+                jobCode: true,
+                partNumber: { include: { manufacturer: true } }
+              } 
+            },
+            jobOrder: true
+          }
+        })
+      ]);
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Job history fetched",
+          data: { 
+            History: jobOrders, 
+            Invoice: invoices.map(inv => ({
+              ...inv,
+              saleItemInvoice: inv.SaleSpareInvoiceItem
+            })) 
+          }
+        }
+      });
+    } catch (err) {
+      logger.error("History vehicle jobs error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
+  vehicleJobOrder = async (req, res) => {
+    try {
+      const { registerNo, chassisNo, engineNo } = req.body;
+      const jobOrders = await prisma.jobOrder.findMany({
+        where: {
+          vehicle: {
+            OR: [
+              { registerNo },
+              { chassisNo },
+              { engineNo }
+            ]
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        include: this.fragment
+      });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Job orders fetched",
+          data: jobOrders
+        }
+      });
+    } catch (err) {
+      logger.error("Vehicle job order search error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
     }
   };
 }

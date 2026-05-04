@@ -48,6 +48,9 @@ import smsRoutes from "./sms.js";
 import sendSmsRoutes from "./sendSms.js";
 import promotionsRoutes from "./promotions.js";
 import idGenerateRoutes from "./idGenerate.js";
+import idCreationRoutes from "./idCreation.js";
+import activityRoutes from "./activity.js";
+import uploadRoutes from "./upload.js";
 
 const router = Router();
 
@@ -89,7 +92,7 @@ router.use("/telecmi", telecmiRoutes);
 router.use("/dashboard", dashboardRoutes);
 router.use("/ledgerDetail", ledgerDetailRoutes);
 router.use("/whatsapp", whatsappRoutes);
-router.use("/optionsList", optionsListRoutes);
+router.use("/options", optionsListRoutes);
 router.use("/materialIssue", materialIssueRoutes);
 router.use("/stockCheck", stockCheckRoutes);
 router.use("/purchaseReturn", purchaseReturnRoutes);
@@ -100,5 +103,8 @@ router.use("/sms", smsRoutes);
 router.use("/sendSms", sendSmsRoutes);
 router.use("/promotions", promotionsRoutes);
 router.use("/idGenerate", idGenerateRoutes);
+router.use("/idCreation", idCreationRoutes);
+router.use("/activity", activityRoutes);
+router.use("/upload", uploadRoutes);
 
 export default router;

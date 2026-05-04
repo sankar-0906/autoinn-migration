@@ -11,4 +11,8 @@ router.post("/", controller.createPurchaseChallan);
 router.get("/getOne/:id", controller.getOne);
 router.post("/get", controller.getPage);
 
+// Missing parity routes
+router.post("/frameNumber", controller.frameNumber);
+router.post("/engineNumber", controller.engineNumber);
+
 export default router;

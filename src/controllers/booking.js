@@ -2,6 +2,8 @@ import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 
+import IdGenerateController from "./idGenerate.js";
+
 /**
  * Controller for Booking operations.
  * Maintained with 100% payload parity with autoinn-be.
@@ -110,6 +112,9 @@ class BookingController {
         },
         include: this.bookingInclude
       });
+
+      // Increment ID counter
+      await IdGenerateController.incrementId("BOOKINGREGISTER", branch);
 
       return res.json({
         code: 200,

@@ -2,6 +2,8 @@ import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 
+import IdGenerateController from "./idGenerate.js";
+
 /**
  * Controller for Enquiry operations.
  * Maintained with 100% payload parity with autoinn-be.
@@ -54,6 +56,9 @@ class EnquiryController {
         },
         include: this.enquiryInclude
       });
+
+      // Increment ID counter
+      await IdGenerateController.incrementId("ENQUIRY", req.body.branch || null);
 
       return res.json({
         code: 200,

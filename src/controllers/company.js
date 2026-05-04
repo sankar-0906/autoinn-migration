@@ -118,14 +118,104 @@ class CompanyController {
     }
   };
 
+  updateCompany = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { name, cin, pan, website, email, logo, contact_person, phone } = req.body;
+      const updated = await prisma.company.update({
+        where: { id },
+        data: {
+          name, cin, pan, website, email, logo, contactPerson: contact_person, phone,
+          updatedAt: new Date()
+        }
+      });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "company updated",
+          data: updated
+        }
+      });
+    } catch (err) {
+      logger.error("Update company error:", err);
+      return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  deleteCompany = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const deleted = await prisma.company.delete({
+        where: { id }
+      });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Company deleted permanently."
+        }
+      });
+    } catch (err) {
+      logger.error("Delete company error:", err);
+      return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  senderId = async (req, res) => {
+    try {
+      if (!process.env.ADMIN_API_KEY) {
+        logger.warn("ADMIN_API_KEY missing, returning mock sender IDs");
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            msg: "Sender Id's fetched (Mock)",
+            data: ["AUTOIN", "SMSTST"]
+          }
+        });
+      }
+
+      const response = await axios.get("http://admin.autocloud.in/api/v1/smsApi/senderId", {
+        headers: {
+          'Authorization': process.env.ADMIN_API_KEY
+        }
+      });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Sender Id's fetched",
+          data: response.data.senderId
+        }
+      });
+    } catch (err) {
+      logger.error("Sender ID error:", err.message);
+      return res.json({ 
+        code: 200, 
+        response: {
+          code: 200,
+          msg: "Sender Id's fetched (Fallback)",
+          data: ["AUTOIN"]
+        }
+      });
+    }
+  };
+
   createBranch = async (req, res) => {
     try {
+      console.log("createBranch Payload:", req.body);
       const {
         name, branchType, noOfRamps, contacts, gst, email = '',
         url = '', googleMapUrl = '', manufacturer, personInCharge,
-        lat, lon, address, bankDetails
+        lat, lon, address, bankDetails, latitude, longitude, senderId
       } = req.body;
       const user = req.user?.id || req.headers["user-id"];
+
+      const reqLat = latitude || lat || address?.latitude || address?.lat;
+      const reqLon = longitude || lon || address?.longitude || address?.lon;
+      const parsedLat = reqLat ? parseFloat(reqLat) : null;
+      const parsedLon = reqLon ? parseFloat(reqLon) : null;
 
       // Fetch first company as per legacy logic
       const companies = await prisma.company.findMany({ take: 1 });
@@ -139,9 +229,10 @@ class CompanyController {
           name,
           branchType,
           noOfRamps: noOfRamps ? parseInt(noOfRamps) : 0,
-          lat,
-          lon,
+          lat: parsedLat,
+          lon: parsedLon,
           gst,
+          senderId,
           email,
           url,
           googleMapUrl,
@@ -150,22 +241,22 @@ class CompanyController {
           company: { connect: { id: companyId } },
           address: {
             create: {
-              line1: address.line1,
-              line2: address.line2,
-              line3: address.line3,
-              locality: address.locality,
-              pincode: address.pincode,
+              line1: address?.line1,
+              line2: address?.line2,
+              line3: address?.line3,
+              locality: address?.locality,
+              pincode: address?.pincode,
               createdAt: new Date(),
               updatedAt: new Date(),
-              district: address.district ? { connect: { id: address.district } } : undefined,
-              state: address.state ? { connect: { id: address.state } } : undefined,
-              country: address.country ? { connect: { id: address.country } } : undefined,
+              district: address?.district ? { connect: { id: address.district } } : undefined,
+              state: address?.state ? { connect: { id: address.state } } : undefined,
+              country: address?.country ? { connect: { id: address.country } } : undefined,
             }
           },
           contacts: contacts && contacts.length > 0 ? {
             create: contacts.map(c => ({
               phone: c.phone,
-              category: c.phone, // Legacy parity
+              category: c.category,
               createdAt: new Date(),
               updatedAt: new Date()
             }))
@@ -277,6 +368,165 @@ class CompanyController {
     } catch (err) {
       logger.error("Get branch page error:", err);
       return res.json({ code: 500, msg: "an error occurred" });
+    }
+  };
+
+  updateBranch = async (req, res) => {
+    try {
+      console.log("updateBranch Payload:", req.body);
+      const { id } = req.params;
+      const {
+        name, branchType, noOfRamps, contacts, gst, email = '',
+        url = '', googleMapUrl = '', manufacturer, personInCharge,
+        lat, lon, address, bankDetails, latitude, longitude, senderId
+      } = req.body;
+      const user = req.user?.id || req.headers["user-id"];
+
+      const reqLat = latitude || lat || address?.latitude || address?.lat;
+      const reqLon = longitude || lon || address?.longitude || address?.lon;
+      const parsedLat = reqLat ? parseFloat(reqLat) : null;
+      const parsedLon = reqLon ? parseFloat(reqLon) : null;
+
+      const updated = await prisma.branch.update({
+        where: { id },
+        data: {
+          name,
+          branchType,
+          noOfRamps: noOfRamps ? parseInt(noOfRamps) : 0,
+          lat: parsedLat,
+          lon: parsedLon,
+          gst,
+          senderId,
+          email,
+          url,
+          googleMapUrl,
+          updatedAt: new Date(),
+          address: {
+            update: {
+              line1: address?.line1,
+              line2: address?.line2,
+              line3: address?.line3,
+              locality: address?.locality,
+              pincode: address?.pincode,
+              district: address?.district ? { connect: { id: address.district } } : undefined,
+              state: address?.state ? { connect: { id: address.state } } : undefined,
+              country: address?.country ? { connect: { id: address.country } } : undefined,
+              updatedAt: new Date()
+            }
+          },
+          contacts: contacts && contacts.length > 0 ? {
+            upsert: contacts.filter(c => c.id).map(c => ({
+              where: { id: c.id },
+              update: { phone: c.phone, category: c.category, updatedAt: new Date() },
+              create: { phone: c.phone, category: c.category, createdAt: new Date(), updatedAt: new Date() }
+            })),
+            create: contacts.filter(c => !c.id).map(c => ({
+              phone: c.phone, category: c.category, createdAt: new Date(), updatedAt: new Date()
+            }))
+          } : undefined,
+          bankDetails: bankDetails && bankDetails.length > 0 ? {
+            upsert: bankDetails.filter(b => b.id).map(b => ({
+              where: { id: b.id },
+              update: { name: b.name, accountName: b.accountName, ifsc: b.ifsc, accountNumber: b.accountNumber, accountType: b.accountType, updatedAt: new Date() },
+              create: { name: b.name, accountName: b.accountName, ifsc: b.ifsc, accountNumber: b.accountNumber, accountType: b.accountType, createdAt: new Date(), updatedAt: new Date() }
+            })),
+            create: bankDetails.filter(b => !b.id).map(b => ({
+              name: b.name, accountName: b.accountName, ifsc: b.ifsc, accountNumber: b.accountNumber, accountType: b.accountType, createdAt: new Date(), updatedAt: new Date()
+            }))
+          } : undefined,
+          manufacturer: manufacturer ? {
+            set: manufacturer.map(mid => ({ id: mid }))
+          } : undefined,
+          personInCharge: personInCharge ? {
+            set: personInCharge.map(pid => ({ id: pid }))
+          } : undefined
+        },
+        include: this.branchInclude
+      });
+
+      const activeUsersCount = await prisma.user.count({
+        where: {
+          status: true,
+          EmployeeProfile_User_profileToEmployeeProfile: {
+            branch: { some: { id } }
+          }
+        }
+      });
+      const formattedBranch = this.formatBranch(updated);
+      formattedBranch.count = activeUsersCount;
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Branch updated successfully",
+          data: formattedBranch
+        }
+      });
+    } catch (err) {
+      logger.error("Update branch error:", err);
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
+    }
+  };
+
+  delBranches = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const count = await prisma.branch.count();
+      if (count === 1) {
+        return res.json({
+          code: 200,
+          response: {
+            code: 300,
+            message: "There is only one branch present"
+          }
+        });
+      }
+      await prisma.branch.delete({ where: { id } });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Branch deleted permanently."
+        }
+      });
+    } catch (err) {
+      logger.error("Delete branch error:", err);
+      return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  delBank = async (req, res) => {
+    try {
+      const { id } = req.params;
+      await prisma.bankDetails.delete({ where: { id } });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Bank deleted permanently."
+        }
+      });
+    } catch (err) {
+      logger.error("Delete bank error:", err);
+      return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  deleteBranchContact = async (req, res) => {
+    try {
+      const { id } = req.params;
+      await prisma.branchContacts.delete({ where: { id } });
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Branch Contact deleted permanently."
+        }
+      });
+    } catch (err) {
+      logger.error("Delete branch contact error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
     }
   };
 

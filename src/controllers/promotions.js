@@ -3,6 +3,9 @@ import logger from "../config/logger.config.js";
 import moment from "moment";
 
 
+import IdGenerateController from "./idGenerate.js";
+
+
 class PromotionsController {
   constructor() {}
 
@@ -48,6 +51,9 @@ class PromotionsController {
           createdAt: new Date()
         }
       });
+
+      // Increment ID counter
+      await IdGenerateController.incrementId("PROMOTIONS", data.branch || null);
 
       return {
         code: 200,

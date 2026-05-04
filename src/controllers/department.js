@@ -8,9 +8,10 @@ class DepartmentController {
 
   formatDepartment(dept) {
     if (!dept) return null;
+    const { RoleAccess, ...rest } = dept;
     return {
-      ...dept,
-      roleAccess: dept.RoleAccess ? dept.RoleAccess.map(ra => ({
+      ...rest,
+      roleAccess: RoleAccess ? RoleAccess.map(ra => ({
         id: ra.id,
         master: ra.master,
         subModule: ra.subModule,
@@ -158,9 +159,9 @@ class DepartmentController {
       const userCount = await prisma.user.count({
         where: {
           employee: true,
-          profile: {
+          EmployeeProfile_User_profileToEmployeeProfile: {
             branch: {
-              some: { id: { in: branch } }
+              some: { id: { in: Array.isArray(branch) ? branch : [branch] } }
             },
             department: {
               id: updateDepartment.id
@@ -218,35 +219,56 @@ class DepartmentController {
       
       const users = await prisma.user.findMany({
         where: {
-          profile: {
+          EmployeeProfile_User_profileToEmployeeProfile: {
             branch: {
-              some: { id: { in: branch } }
+              some: { id: { in: Array.isArray(branch) ? branch : [branch] } }
             },
             departmentId: id
           },
           OR: [
             { phone: { contains: inputValue, mode: "insensitive" } },
             {
-              profile: {
+              EmployeeProfile_User_profileToEmployeeProfile: {
                 employeeName: { contains: inputValue, mode: "insensitive" }
               }
             }
           ]
         },
         include: {
-          profile: {
+          EmployeeProfile_User_profileToEmployeeProfile: {
             include: {
               department: true,
-              branch: true
+              branch: true,
+              bankDetails: true,
+              address: {
+                include: {
+                  district: true,
+                  state: true,
+                  country: true
+                }
+              },
+              documents: {
+                include: {
+                  files: true
+                }
+              }
             }
           }
         }
       });
 
+      const formattedUsers = users.map(u => {
+        const { EmployeeProfile_User_profileToEmployeeProfile, ...rest } = u;
+        return {
+          ...rest,
+          profile: EmployeeProfile_User_profileToEmployeeProfile
+        };
+      });
+
       return {
         code: 200,
         message: "Department users got successfully",
-        data: { getDepartment: users, user },
+        data: { getDepartment: formattedUsers, user },
       };
     } catch (err) {
       logger.error("CONTROLLER.DEPARTMENT.getUsers", err);
@@ -274,7 +296,7 @@ class DepartmentController {
         const count = await prisma.user.count({
           where: {
             employee: true,
-            profile: {
+            EmployeeProfile_User_profileToEmployeeProfile: {
               departmentId: dept.id
             }
           }
@@ -329,9 +351,9 @@ class DepartmentController {
       const formattedDepts = await Promise.all(departments.map(async (dept) => {
         const userCount = await prisma.user.count({
           where: {
-            profile: {
+            EmployeeProfile_User_profileToEmployeeProfile: {
               branch: {
-                some: { id: { in: branch } }
+                some: { id: { in: Array.isArray(branch) ? branch : [branch] } }
               },
               departmentId: dept.id
             }
@@ -352,6 +374,27 @@ class DepartmentController {
       throw {
         code: 500,
         message: "error getting departments page",
+        data: err,
+      };
+    }
+  };
+
+  deleteRoleAccess = async (id, type, user) => {
+    try {
+      if (type === "SOFT") {
+        return { code: 200, message: "Soft delete not implemented in schema" };
+      } else {
+        await prisma.roleAccess.delete({ where: { id } });
+        return {
+          code: 200,
+          message: "RoleAccess deleted",
+        };
+      }
+    } catch (err) {
+      logger.error("CONTROLLER.DEPARTMENT.deleteRoleAccess", err);
+      throw {
+        code: 500,
+        message: "error deleting role access",
         data: err,
       };
     }

@@ -9,7 +9,9 @@ router.use(auth);
 
 router.post("/", controller.createVehicleMaster);
 router.get("/man/:id", controller.getModel);
+router.get("/manAll/:id", controller.getAllModel); // Added manAll route
 router.get("/getOne/:id", controller.getOne);
+router.get("/:id", controller.getOne); // Support both getOne/:id and /:id
 router.get("/", controller.getAll);
 router.post("/get", controller.getPage);
 

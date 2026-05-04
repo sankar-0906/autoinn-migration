@@ -59,7 +59,7 @@ setupTeleCMISocket(httpServer);
 const start = async () => {
   try {
     httpServer.listen(env.PORT, () => {
-      logger.info(`🚀 AutoInn Modern Backend running on port ${env.PORT}`);
+      logger.info(`🚀 Autoinn Modern Backend running on port ${env.PORT}`);
     });
   } catch (error) {
     logger.error("Failed to start server", error);

@@ -39,27 +39,35 @@ class TeleCMIController {
       const { phoneNumber } = req.params;
       const { direction, status, fromDate, toDate, limit, offset } = req.body;
 
-      const history = await prisma.teleCMICallHistory.findMany({
-        where: {
-          OR: [
-            { from: { contains: phoneNumber } },
-            { to: { contains: phoneNumber } }
-          ],
-          direction: direction || undefined,
-          status: status || undefined,
-          createdAt: {
-            gte: fromDate ? new Date(fromDate) : undefined,
-            lte: toDate ? new Date(toDate) : undefined
-          }
-        },
-        take: parseInt(limit) || 50,
-        skip: parseInt(offset) || 0,
-        orderBy: { updatedAt: 'desc' }
-      });
+      const whereClause = {
+        OR: [
+          { from: { contains: phoneNumber } },
+          { to: { contains: phoneNumber } }
+        ],
+        direction: direction || undefined,
+        status: status || undefined,
+        createdAt: {
+          gte: fromDate ? new Date(fromDate) : undefined,
+          lte: toDate ? new Date(toDate) : undefined
+        }
+      };
+
+      const [history, count] = await Promise.all([
+        prisma.teleCMICallHistory.findMany({
+          where: whereClause,
+          take: parseInt(limit) || 50,
+          skip: parseInt(offset) || 0,
+          orderBy: { updatedAt: 'desc' }
+        }),
+        prisma.teleCMICallHistory.count({ where: whereClause })
+      ]);
 
       return res.json({
         code: 200,
-        data: history
+        data: history,
+        pagination: {
+          totalRecords: count
+        }
       });
     } catch (err) {
       logger.error("Get call history error:", err);

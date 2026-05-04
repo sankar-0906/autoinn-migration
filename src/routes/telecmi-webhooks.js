@@ -8,7 +8,7 @@ const router = Router();
 router.use(auth);
 
 router.post("/phoneDialHistory", controller.getPhoneDialHistory);
-router.post("/callhistory/:phoneNumber", controller.getCallHistoryForNumber);
+router.post("/callHistoryForNumber/:phoneNumber", controller.getCallHistoryForNumber);
 router.get("/teleUser", controller.getAllTeleUsers);
 router.post("/teleUser", controller.createUser);
 router.post("/teleUser/toggleStatus/:id", controller.updateStatus);
