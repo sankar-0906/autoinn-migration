@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../services/helper/titleCase.js";
+import userController from "./user.js";
 
 
 class DepartmentController {
@@ -234,36 +235,10 @@ class DepartmentController {
             }
           ]
         },
-        include: {
-          EmployeeProfile_User_profileToEmployeeProfile: {
-            include: {
-              department: true,
-              branch: true,
-              bankDetails: true,
-              address: {
-                include: {
-                  district: true,
-                  state: true,
-                  country: true
-                }
-              },
-              documents: {
-                include: {
-                  files: true
-                }
-              }
-            }
-          }
-        }
+        include: userController.userInclude
       });
 
-      const formattedUsers = users.map(u => {
-        const { EmployeeProfile_User_profileToEmployeeProfile, ...rest } = u;
-        return {
-          ...rest,
-          profile: EmployeeProfile_User_profileToEmployeeProfile
-        };
-      });
+      const formattedUsers = users.map(u => userController.formatUser(u));
 
       return {
         code: 200,

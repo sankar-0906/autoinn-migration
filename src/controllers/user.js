@@ -96,12 +96,50 @@ class UserController {
 
       // Map documents to direct fields and provide capitalized key
       if (profile.documents) {
+        const docMap = {};
         profile.documents.forEach(doc => {
-          if (doc.type === "license" || doc.type === "Driving License") profile.license = doc.typeValue;
-          if (doc.type === "pan" || doc.type === "Pan Card") profile.panCard = doc.typeValue;
-          if (doc.type === "aadhar" || doc.type === "Aadhar Card") profile.aadhar = doc.typeValue;
+          const type = (doc.type || "").toLowerCase();
+          if (type === "license" || type === "driving license") {
+            profile.license = doc.typeValue;
+            docMap.license = doc;
+          }
+          if (type === "pan" || type === "pan card") {
+            profile.panCard = doc.typeValue;
+            docMap.pan = doc;
+          }
+          if (type === "aadhar" || type === "aadhar card") {
+            profile.aadhar = doc.typeValue;
+            docMap.aadhar = doc;
+          }
+          if (type === "passbook") {
+            docMap.passbook = doc;
+          }
         });
-        profile.Documents = profile.documents;
+
+        // Reconstruct documents array in specific order: 0:license, 1:pan, 2:aadhar, 3:passbook
+        // Ensure 'files' is never null to prevent frontend crashes
+        const orderedDocs = [
+          docMap.license || { type: "license", typeValue: null },
+          docMap.pan || { type: "pan", typeValue: null },
+          docMap.aadhar || { type: "aadhar", typeValue: null },
+          docMap.passbook || { type: "passbook", typeValue: null }
+        ].map(doc => ({
+          ...doc,
+          files: doc.files || { url: null, name: doc.type }
+        }));
+
+        profile.documents = orderedDocs;
+        profile.Documents = orderedDocs;
+      } else {
+        // Fallback for missing documents
+        const defaultDocs = [
+          { type: "license", typeValue: null, files: { url: null } },
+          { type: "pan", typeValue: null, files: { url: null } },
+          { type: "aadhar", typeValue: null, files: { url: null } },
+          { type: "passbook", typeValue: null, files: { url: null } }
+        ];
+        profile.documents = defaultDocs;
+        profile.Documents = defaultDocs;
       }
 
       formattedUser = {

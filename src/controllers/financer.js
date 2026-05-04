@@ -20,6 +20,9 @@ class FinancerController {
   };
 
   createFinancer = async (req, res) => {
+    console.log("------------------- FINANCIER CREATE START -------------------");
+    console.log("Payload:", JSON.stringify(req.body, null, 2));
+    console.log("--------------------------------------------------------------");
     try {
       const {
         name, dealerType, GSTIN, status, email, logo, address, contact
@@ -83,6 +86,10 @@ class FinancerController {
   };
 
   updateFinancer = async (req, res) => {
+    console.log("------------------- FINANCIER UPDATE START -------------------");
+    console.log("ID:", req.params.id);
+    console.log("Payload:", JSON.stringify(req.body, null, 2));
+    console.log("--------------------------------------------------------------");
     try {
       const { id } = req.params;
       const {
