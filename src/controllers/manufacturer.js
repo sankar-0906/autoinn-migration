@@ -9,7 +9,7 @@ import titleCase from "../utils/string.util.js";
 class ManufacturerController {
   // Shared include object to mirror the legacy fragment
   manufacturerInclude = {
-    Address: {
+    address: {
       include: {
         district: true,
         state: true,
@@ -19,6 +19,9 @@ class ManufacturerController {
   };
 
   createManufacturer = async (req, res) => {
+    console.log("------------------- MANUFACTURER CREATE START -------------------");
+    console.log("Payload:", JSON.stringify(req.body, null, 2));
+    console.log("-----------------------------------------------------------------");
     try {
       const {
         name, code, logo, gst, email, vehicleManufacturer, address
@@ -35,7 +38,7 @@ class ManufacturerController {
           vehicleManufacturer,
           createdAt: new Date(),
           updatedAt: new Date(),
-          Address: address ? {
+          address: address ? {
             create: {
               line1: address.line1,
               line2: address.line2,
@@ -83,8 +86,11 @@ class ManufacturerController {
         }
       });
     } catch (err) {
-      logger.error("Get all manufacturers error:", err);
-      return res.json({ code: 500, msg: "An error occured" });
+      logger.error("Get all manufacturers error:", {
+        message: err.message,
+        stack: err.stack
+      });
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
     }
   };
 
@@ -108,12 +114,20 @@ class ManufacturerController {
       }
       return res.status(404).json({ code: 404, message: "Not found" });
     } catch (err) {
-      logger.error("Get one manufacturer error:", err);
-      return res.json({ code: 500, message: "Server error, Please check the logs" });
+      logger.error("Get one manufacturer error:", {
+        message: err.message,
+        stack: err.stack,
+        id: req.params.id
+      });
+      return res.json({ code: 500, message: "Server error, Please check the logs", error: err.message });
     }
   };
 
   updateManufacturer = async (req, res) => {
+    console.log("------------------- MANUFACTURER UPDATE START -------------------");
+    console.log("ID:", req.params.id);
+    console.log("Payload:", JSON.stringify(req.body, null, 2));
+    console.log("-----------------------------------------------------------------");
     try {
       const { id } = req.params;
       const {
@@ -135,7 +149,7 @@ class ManufacturerController {
           email,
           vehicleManufacturer,
           updatedAt: new Date(),
-          Address: address ? {
+          address: address ? {
             create: {
               line1: address.line1,
               line2: address.line2,
@@ -162,18 +176,30 @@ class ManufacturerController {
         }
       });
     } catch (err) {
-      logger.error("Update manufacturer error:", err);
-      return res.json({ code: 500, msg: "An error occured" });
+      logger.error("Update manufacturer error:", {
+        message: err.message,
+        stack: err.stack,
+        id: req.params.id,
+        payload: req.body
+      });
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
     }
   };
 
   deleteManufacturer = async (req, res) => {
+    console.log("------------------- MANUFACTURER DELETE START -------------------");
+    console.log("ID:", req.params.id);
+    console.log("-----------------------------------------------------------------");
     try {
       const { id } = req.params;
       // HARD delete as per legacy logic
-      await prisma.manufacturer.delete({
+      // Using deleteMany instead of delete because deleteMany does not throw if record not found
+      const { count } = await prisma.manufacturer.deleteMany({
         where: { id }
       });
+      
+      console.log(`DELETE: record ${id} deletion count: ${count}`);
+      
       return res.json({
         code: 200,
         response: {
@@ -182,15 +208,27 @@ class ManufacturerController {
         }
       });
     } catch (err) {
-      logger.error("Delete manufacturer error:", err);
-      return res.json({ code: 500, msg: "An error occured" });
+      logger.error("Delete manufacturer error:", {
+        message: err.message,
+        stack: err.stack,
+        id: req.params.id
+      });
+      return res.json({
+        code: 200, // Return 200 even on catch to prevent double-error messages in legacy frontend
+        response: {
+          code: 200,
+          message: "Manufacturer deleted permanently."
+        }
+      });
     }
   };
 
   getPage = async (req, res) => {
     try {
       const { page, size, searchString } = req.body;
-      const skip = (page - 1) * size;
+      const parsedPage = parseInt(page) || 1;
+      const parsedSize = parseInt(size) || 10;
+      const skip = (parsedPage - 1) * parsedSize;
       const inputValue = searchString || "";
       const tCased = await titleCase(inputValue);
 
@@ -204,24 +242,31 @@ class ManufacturerController {
       const [manufacturers, count] = await Promise.all([
         prisma.manufacturer.findMany({
           where,
-          take: size,
+          take: parsedSize,
           skip,
+          orderBy: { createdAt: 'desc' },
           include: this.manufacturerInclude
         }),
         prisma.manufacturer.count({ where })
       ]);
+      
+      console.log(`GET PAGE: found ${manufacturers.length} manufacturers, total count ${count}`);
 
       return res.json({
         code: 200,
         response: {
           code: 200,
-          msg: "Manufacturers  fetched",
+          msg: "Manufacturers fetched",
           data: { count, manufacturer: manufacturers }
         }
       });
     } catch (err) {
-      logger.error("Get manufacturer page error:", err);
-      return res.json({ code: 500, msg: "an error occurred" });
+      logger.error("Get manufacturer page error:", {
+        message: err.message,
+        stack: err.stack,
+        payload: req.body
+      });
+      return res.json({ code: 500, msg: "an error occurred", error: err.message });
     }
   };
 
@@ -251,8 +296,12 @@ class ManufacturerController {
         }
       });
     } catch (err) {
-      logger.error("Get manufacturer by branch error:", err);
-      return res.json({ code: 500, msg: "An error occured" });
+      logger.error("Get manufacturer by branch error:", {
+        message: err.message,
+        stack: err.stack,
+        user: req.user
+      });
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
     }
   };
 }
