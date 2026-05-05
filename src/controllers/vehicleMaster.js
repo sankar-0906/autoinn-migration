@@ -255,11 +255,40 @@ class VehicleMasterController {
   getPage = async (req, res) => {
     try {
       const { page, size, searchString } = req.body;
-      const skip = (page - 1) * size;
+      const userBranch = req.user?.branch || [];
+      const parsedPage = parseInt(page) || 1;
+      const parsedSize = parseInt(size) || 10;
+      const skip = (parsedPage - 1) * parsedSize;
       const inputValue = searchString || "";
       const tCased = await titleCase(inputValue);
 
+      // Robust Branch/Manufacturer filtering logic
+      let branchIds = req.user?.branch || [];
+      const userId = req.user?.id || req.headers["user-id"];
+
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0)) && userId) {
+        const userWithBranches = await prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            EmployeeProfile_User_profileToEmployeeProfile: { include: { branch: true } },
+            branches: true
+          }
+        });
+        if (userWithBranches) {
+          const profileBranches = userWithBranches.EmployeeProfile_User_profileToEmployeeProfile?.branch?.map(b => b.id) || [];
+          const userBranches = userWithBranches.branches?.map(b => b.id) || [];
+          branchIds = [...new Set([...profileBranches, ...userBranches])];
+        }
+      }
+
+      const branches = await prisma.branch.findMany({
+        where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        include: { manufacturer: true }
+      });
+      const manufacturerIds = branches.flatMap(b => b.manufacturer.map(m => m.id));
+
       const where = {
+        manufacturer: { in: manufacturerIds },
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
           { modelCode: { contains: inputValue, mode: 'insensitive' } },
@@ -270,7 +299,7 @@ class VehicleMasterController {
       const [vehicles, count] = await Promise.all([
         prisma.vehicleMaster.findMany({
           where,
-          take: size,
+          take: parsedSize,
           skip,
           orderBy: { createdAt: 'desc' },
           include: this.vehicleMasterInclude
@@ -288,7 +317,7 @@ class VehicleMasterController {
       });
     } catch (err) {
       logger.error("Get vehicle master page error:", err);
-      return res.json({ code: 500, msg: "an error occurred" });
+      return res.json({ code: 500, msg: "an error occurred", error: err.message, stack: err.stack });
     }
   };
 
@@ -298,6 +327,18 @@ class VehicleMasterController {
   getModel = async (req, res) => {
     try {
       const { id } = req.params; // Manufacturer ID
+      
+      if (!id || id === "undefined" || id === "null") {
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            message: "No manufacturer ID provided (received undefined/null)",
+            data: []
+          }
+        });
+      }
+
       const { onlyAvailable, searchString } = req.query;
       const inputValue = searchString || "";
 

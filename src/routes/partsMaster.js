@@ -8,7 +8,10 @@ const router = Router();
 router.use(auth);
 
 router.post("/", controller.createPartsMaster);
+router.put("/:id", controller.updatePartsMaster);
+router.delete("/:id", controller.deletePartsMaster);
 router.get("/accessories", controller.getAccessories);
+router.get("/template", controller.template);
 router.get("/:id", controller.getOne);
 router.get("/", controller.getAll);
 router.post("/get", controller.getPage);

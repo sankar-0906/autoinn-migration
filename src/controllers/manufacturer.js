@@ -138,7 +138,7 @@ class ManufacturerController {
       // which might lead to orphaned addresses or duplicate entries. 
       // For parity, we'll follow the legacy pattern if it was intended to replace or create new.
       // However, usually we should update the existing one.
-      
+
       const updated = await prisma.manufacturer.update({
         where: { id },
         data: {
@@ -197,9 +197,9 @@ class ManufacturerController {
       const { count } = await prisma.manufacturer.deleteMany({
         where: { id }
       });
-      
+
       console.log(`DELETE: record ${id} deletion count: ${count}`);
-      
+
       return res.json({
         code: 200,
         response: {
@@ -249,7 +249,7 @@ class ManufacturerController {
         }),
         prisma.manufacturer.count({ where })
       ]);
-      
+
       console.log(`GET PAGE: found ${manufacturers.length} manufacturers, total count ${count}`);
 
       return res.json({
@@ -272,7 +272,28 @@ class ManufacturerController {
 
   getBranch = async (req, res) => {
     try {
-      const branchIds = req.user?.branch || [];
+      let branchIds = req.user?.branch || [];
+      const userId = req.user?.id || req.headers["user-id"];
+
+      // If branchIds is empty or null, try fetching from DB for this user
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0)) && userId) {
+        const userWithBranches = await prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            EmployeeProfile_User_profileToEmployeeProfile: {
+              include: { branch: true }
+            },
+            branches: true
+          }
+        });
+
+        if (userWithBranches) {
+          const profileBranches = userWithBranches.EmployeeProfile_User_profileToEmployeeProfile?.branch?.map(b => b.id) || [];
+          const userBranches = userWithBranches.branches?.map(b => b.id) || [];
+          branchIds = [...new Set([...profileBranches, ...userBranches])];
+        }
+      }
+
       const branches = await prisma.branch.findMany({
         where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
         include: { manufacturer: true }

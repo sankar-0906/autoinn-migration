@@ -9,6 +9,11 @@ router.use(auth);
 
 router.post("/", controller.createVehiclePrice);
 router.get("/latest/:vehicleId", controller.getLatestByVehicle);
+router.put("/:id", controller.update);
+router.delete("/:id", controller.delete);
+router.get("/model/:id", controller.getModel);
+router.get("/getColors/:id", controller.getColors);
+router.get("/data/export", controller.exportData);
 router.get("/:id", controller.getOne);
 router.get("/", controller.getAll);
 router.post("/get", controller.getPage);
