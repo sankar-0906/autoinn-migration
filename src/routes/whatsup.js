@@ -43,4 +43,49 @@ router.get("/profile", async (req, res) => {
   }
 });
 
+router.patch("/update", async (req, res) => {
+  try {
+    const response = await controller.updateProfileDetails(req.body);
+    res.status(response.code).json(response);
+  } catch (err) {
+    res.status(err.code || 500).json(err);
+  }
+});
+
+router.get("/promoWhatsapp", async (req, res) => {
+  try {
+    const response = await controller.promoWhatsapp();
+    res.status(response.code).json(response);
+  } catch (err) {
+    res.status(err.code || 500).json(err);
+  }
+});
+
+router.put("/promoWhatsapp/:id", async (req, res) => {
+  try {
+    const response = await controller.updatePromoTemplate(req.params.id, req.body);
+    res.status(response.code).json(response);
+  } catch (err) {
+    res.status(err.code || 500).json(err);
+  }
+});
+
+router.get("/whatsappLogStatus", async (req, res) => {
+  try {
+    const response = await controller.fetchwhatsappLogStatus();
+    res.status(response.code).json(response);
+  } catch (err) {
+    res.status(err.code || 500).json(err);
+  }
+});
+
+router.put("/updateTemplate/:id", async (req, res) => {
+  try {
+    const response = await controller.updateTemplate(req.params.id, req.body);
+    res.status(response.code).json(response);
+  } catch (err) {
+    res.status(err.code || 500).json(err);
+  }
+});
+
 export default router;
