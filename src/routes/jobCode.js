@@ -8,6 +8,10 @@ const router = Router();
 router.use(auth);
 
 router.post("/", controller.createJobCode);
+router.put("/:id", controller.updateJobCode);
+router.delete("/:id", controller.deleteJobCode);
+router.get("/template", controller.template);
+router.get("/data/export", controller.exportData);
 router.get("/:id", controller.getOne);
 router.get("/", controller.getAll);
 router.post("/get", controller.getPage);
