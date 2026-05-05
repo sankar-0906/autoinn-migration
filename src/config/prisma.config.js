@@ -12,7 +12,7 @@ const adapter = new PrismaPg(pool, { schema: "default$default" });
 // 3. Initialize Prisma Client with the adapter
 const prisma = new PrismaClient({
   adapter,
-  log: env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
+  log: env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
 });
 
 export default prisma;

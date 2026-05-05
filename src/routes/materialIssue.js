@@ -1,0 +1,14 @@
+import { Router } from "express";
+import controller from "../controllers/materialIssue.js";
+import { auth } from "../middlewares/auth.middleware.js";
+
+const router = Router();
+
+// Apply auth middleware
+router.use(auth);
+
+router.post("/get", controller.getPage);
+router.get("/maxSlipNumber/:materialIssueId", controller.getMaxSlipNumber);
+router.get("/:id", controller.getOne);
+
+export default router;
