@@ -25,13 +25,36 @@ const storage = multer.diskStorage({
 const upload = multer({
   storage: storage,
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
-}).single("profile"); // The legacy frontend uses "profile" as the field name
+});
 
-router.post("/image", auth, upload, async (req, res) => {
+const profileUpload = upload.single("profile");
+const anyUpload = upload.any();
+
+router.post("/image", auth, profileUpload, async (req, res) => {
   try {
     const file = req.file;
     const body = req.body;
     const response = await uploadController.uploadImage(file, body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
+router.post("/file", auth, anyUpload, async (req, res) => {
+  try {
+    const { files, body } = req;
+    const response = await uploadController.UploadFiles(files, body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
+router.post("/get", auth, async (req, res) => {
+  try {
+    const { body } = req;
+    const response = await uploadController.getFiles(body);
     res.json({ code: 200, response });
   } catch (err) {
     res.json({ code: 500, msg: "An error occured", err });

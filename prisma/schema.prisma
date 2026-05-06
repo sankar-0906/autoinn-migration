@@ -562,7 +562,7 @@ model Image {
 }
 
 model FileManagement {
-  id        String   @id @default(cuid()) @db.VarChar(25)
+  id        String   @id @default(cuid()) @db.VarChar(40)
   name      String?
   module    String?
   url       String?

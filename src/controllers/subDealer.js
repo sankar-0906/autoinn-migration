@@ -13,15 +13,15 @@ class SubDealerController {
       // Ensure relations are formatted as expected by frontend
       address: sd.address ? {
         ...sd.address,
-        district: sd.address.district ? { id: sd.address.district.id, name: sd.address.district.name } : null,
-        state: sd.address.state ? { id: sd.address.state.id, name: sd.address.state.name } : null,
-        country: sd.address.country ? { id: sd.address.country.id, name: sd.address.country.name } : null,
+        district: sd.address.district || { id: null, name: "" },
+        state: sd.address.state || { id: null, name: "" },
+        country: sd.address.country || { id: null, name: "" },
       } : null,
       shippingAddress: sd.shippingAddress ? {
         ...sd.shippingAddress,
-        district: sd.shippingAddress.district ? { id: sd.shippingAddress.district.id, name: sd.shippingAddress.district.name } : null,
-        state: sd.shippingAddress.state ? { id: sd.shippingAddress.state.id, name: sd.shippingAddress.state.name } : null,
-        country: sd.shippingAddress.country ? { id: sd.shippingAddress.country.id, name: sd.shippingAddress.country.name } : null,
+        district: sd.shippingAddress.district || { id: null, name: "" },
+        state: sd.shippingAddress.state || { id: null, name: "" },
+        country: sd.shippingAddress.country || { id: null, name: "" },
       } : null,
       contact: sd.contact || [],
       bank: sd.bank || []
@@ -83,7 +83,7 @@ class SubDealerController {
               ifsc: ban.ifsc,
               accountType: ban.accountType,
               createdAt: new Date(),
-              createdBy: user
+              createdBy: { connect: { id: user } }
             }))
           } : undefined
         },
@@ -184,7 +184,7 @@ class SubDealerController {
                 ifsc: ban.ifsc,
                 accountType: ban.accountType,
                 createdAt: new Date(),
-                createdBy: user
+                createdBy: { connect: { id: user } }
               }
             }))
           } : undefined
@@ -296,6 +296,26 @@ class SubDealerController {
     } catch (err) {
       logger.error("CONTROLLER.SUBDEALER.getPage", err);
       throw { code: 500, message: "error getting subdealers page", data: err };
+    }
+  };
+
+  deletePhone = async (id) => {
+    try {
+      await prisma.subDealerContact.delete({ where: { id } });
+      return { code: 200, message: "Phone deleted permanently." };
+    } catch (err) {
+      logger.error("CONTROLLER.SUBDEALER.deletePhone", err);
+      throw { code: 500, message: "error deleting phone", data: err };
+    }
+  };
+
+  deleteBank = async (id) => {
+    try {
+      await prisma.bankDetails.delete({ where: { id } });
+      return { code: 200, message: "Bank deleted permanently." };
+    } catch (err) {
+      logger.error("CONTROLLER.SUBDEALER.deleteBank", err);
+      throw { code: 500, message: "error deleting bank", data: err };
     }
   };
 }

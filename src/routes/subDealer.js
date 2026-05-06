@@ -26,6 +26,26 @@ router.put("/:id", auth, async (req, res) => {
   }
 });
 
+router.delete("/phone/:id", auth, async (req, res) => {
+  try {
+    const { params: { id } } = req;
+    const response = await subDealerController.deletePhone(id);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
+router.delete("/bank/:id", auth, async (req, res) => {
+  try {
+    const { params: { id } } = req;
+    const response = await subDealerController.deleteBank(id);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
 router.delete("/:id", auth, async (req, res) => {
   try {
     const { params: { id } } = req;
