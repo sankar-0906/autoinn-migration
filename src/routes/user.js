@@ -13,12 +13,12 @@ const router = Router();
 // Public routes
 router.post("/login", controller.login);
 router.post("/register", forms.any(), controller.register);
+router.get("/count", controller.getUsersCount);
 
 // Protected routes
 router.use(auth);
 
 router.get("/", controller.getAllUsers);
-router.get("/count", controller.getUsersCount);
 router.get("/currentUser", controller.currentUser);
 router.post("/token", controller.token);
 router.get("/getUser/:id", controller.getUser);
