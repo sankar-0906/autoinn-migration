@@ -52,6 +52,8 @@ import idCreationRoutes from "./idCreation.js";
 import activityRoutes from "./activity.js";
 import uploadRoutes from "./upload.js";
 import frameNumberRoutes from "./frameNumber.js";
+import insuranceRoutes from "./insurance.js";
+import pmcRoutes from "./pmc.js";
 
 const router = Router();
 
@@ -108,5 +110,8 @@ router.use("/idCreation", idCreationRoutes);
 router.use("/activity", activityRoutes);
 router.use("/upload", uploadRoutes);
 router.use("/frameNumber", frameNumberRoutes);
+router.use("/insurance", insuranceRoutes);
+router.use("/Insurance", insuranceRoutes);
+router.use("/pmc", pmcRoutes);
 
 export default router;

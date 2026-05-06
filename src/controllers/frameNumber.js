@@ -53,6 +53,8 @@ class FrameNumberController {
         include: this.frameNumberInclude
       });
 
+      logger.info(`Frame Number created: ${created.id} by user: ${user}`);
+
       return res.json({
         code: 200,
         response: {
@@ -70,40 +72,13 @@ class FrameNumberController {
   deleteFrameNumber = async (req, res) => {
     try {
       const { id } = req.params;
-      const { type } = req.query; // SOFT or HARD
       const user = req.user?.id || req.headers["user-id"];
-
-      if (type === "SOFT") {
-        // The schema doesn't seem to have deletedAt/deletedBy for FrameNumber in Prisma schema
-        // Let's check the schema again. 
-        // Wait, I saw line 144 in old backend: deletedAt: new Date().
-        // But the migrate schema I saw earlier didn't have these fields for FrameNumber.
-        // Let's re-verify FrameNumber model in schema.prisma.
-        
-        // For now, if fields are missing, we might need to hard delete or skip soft delete.
-        // Looking at schema.prisma:
-        /*
-        model FrameNumber {
-          id             String        @id @default(cuid()) @db.VarChar(25)
-          position       Int?
-          inputValue     String?
-          inferredField  String?
-          targetValue    String?
-          createdAt      DateTime
-          updatedAt      DateTime      @updatedAt
-          manufacturerId String?       @map("manufacturer") @db.VarChar(25)
-          createdById    String?       @map("createdBy") @db.VarChar(25)
-          createdBy      User?         @relation("FrameNumberWasCreatedByUser", fields: [createdById], references: [id], onUpdate: NoAction)
-          manufacturer   Manufacturer? @relation("FrameNumberHasManufacturer", fields: [manufacturerId], references: [id], onUpdate: NoAction)
-        }
-        */
-        // No deletedAt. So we'll stick to hard delete for now if SOFT is requested but unsupported, 
-        // or just implement hard delete as the default for this model in migrate.
-      }
 
       await prisma.frameNumber.delete({
         where: { id }
       });
+
+      logger.info(`Frame Number deleted: ${id} by user: ${user}`);
 
       return res.json({
         code: 200,
@@ -135,6 +110,8 @@ class FrameNumberController {
   updateFrameNumber = async (req, res) => {
     try {
       const { id } = req.params;
+      logger.info(`Incoming update request for Frame Number: ${id}`);
+      
       const {
         manufacturer,
         position,
@@ -168,6 +145,8 @@ class FrameNumberController {
         },
         include: this.frameNumberInclude
       });
+
+      logger.info(`Frame Number updated: ${updated.id}`);
 
       return res.json({
         code: 200,
@@ -233,10 +212,9 @@ class FrameNumberController {
       const { page, size, searchString } = req.body;
       const branch = req.user?.branch || [];
       const userId = req.user?.id || req.headers["user-id"];
-
       const parsedPage = parseInt(page) || 1;
-      const parsedSize = parseInt(size) || 10;
-      const skip = (parsedPage - 1) * parsedSize;
+      const parsedSize = size ? parseInt(size) : undefined;
+      const skip = parsedSize ? (parsedPage - 1) * parsedSize : undefined;
       const inputValue = searchString || "";
       const tCased = await titleCase(inputValue);
 

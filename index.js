@@ -27,7 +27,7 @@ app.use("/uploads", express.static("uploads"));
 // --- REQUEST LOGGING ---
 app.use(pinoHttp({ 
   logger,
-  autoLogging: true,
+  autoLogging: false,
   serializers: {
     req: (req) => ({
       method: req.method,

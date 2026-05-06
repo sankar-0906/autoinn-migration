@@ -1222,7 +1222,7 @@ model JobInvoice {
 }
 
 model PMC {
-  id             String           @id @default(cuid()) @db.VarChar(25)
+  id             String           @id @default(cuid()) @db.VarChar(40)
   serviceNo      Int?
   serviceType    String?
   serviceKm      Int?
@@ -1234,21 +1234,21 @@ model PMC {
 }
 
 model PmcPartItem {
-  id            String       @id @default(cuid()) @db.VarChar(25)
+  id            String       @id @default(cuid()) @db.VarChar(40)
   quantity      Decimal?
   createdAt     DateTime
   updatedAt     DateTime     @updatedAt
-  partsMasterId String?      @map("partNumber") @db.VarChar(25)
+  partsMasterId String?      @map("partNumber") @db.VarChar(40)
   partNumber    PartsMaster? @relation("PmcPartItemToPartsMaster", fields: [partsMasterId], references: [id], onUpdate: NoAction)
   PMC           PMC[]        @relation("PMChasManyPmcParts")
 }
 
 model PmcJobCodeItem {
-  id        String   @id @default(cuid()) @db.VarChar(25)
+  id        String   @id @default(cuid()) @db.VarChar(40)
   quantity  Decimal?
   createdAt DateTime
   updatedAt DateTime @updatedAt
-  jobCodeId String?  @map("jobCode") @db.VarChar(25)
+  jobCodeId String?  @map("jobCode") @db.VarChar(40)
   jobCode   JobCode? @relation("PmcJobCodeItemToJobCode", fields: [jobCodeId], references: [id], onUpdate: NoAction)
   PMC       PMC[]    @relation("PMChasManyPmcJobCodes")
 }
