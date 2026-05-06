@@ -51,6 +51,7 @@ import idGenerateRoutes from "./idGenerate.js";
 import idCreationRoutes from "./idCreation.js";
 import activityRoutes from "./activity.js";
 import uploadRoutes from "./upload.js";
+import frameNumberRoutes from "./frameNumber.js";
 
 const router = Router();
 
@@ -106,5 +107,6 @@ router.use("/idGenerate", idGenerateRoutes);
 router.use("/idCreation", idCreationRoutes);
 router.use("/activity", activityRoutes);
 router.use("/upload", uploadRoutes);
+router.use("/frameNumber", frameNumberRoutes);
 
 export default router;
