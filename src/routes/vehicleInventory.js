@@ -8,9 +8,10 @@ const router = Router();
 router.use(auth);
 
 router.post("/", controller.createVehicleInventory);
-router.get("/:id", controller.getOne);
-router.get("/", controller.getAll);
 router.post("/get", controller.getPage);
 router.post("/counts", controller.getInventoryCounts);
+router.post("/getvehicles", controller.getVehiclesByModel);
+router.get("/", controller.getAll);
+router.get("/:id", controller.getOne);
 
 export default router;

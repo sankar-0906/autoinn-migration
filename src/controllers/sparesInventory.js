@@ -502,7 +502,7 @@ class SparesInventoryController {
 
       const where = {
         partId: inputValue,
-        branchId: branch,
+        branchId: { in: Array.isArray(branch) ? branch : [branch] },
         phyQuantity: skipNull ? { gt: 0 } : undefined
       };
 

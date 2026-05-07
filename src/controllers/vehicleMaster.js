@@ -16,16 +16,16 @@ const __dirname = path.dirname(__filename);
 class VehicleMasterController {
   // Shared include object to mirror the legacy fragment
   vehicleMasterInclude = {
-    Manufacturer: true,
-    files: true,
-    images: true,
+    manufacturer: true,
+    file: true,
+    image: true,
     services: {
       orderBy: {
         serviceNo: 'asc'
       }
     },
-    Hsn: true,
-    prices: {
+    hsn: true,
+    price: {
       include: {
         VehicleColor: true
       }
@@ -39,33 +39,42 @@ class VehicleMasterController {
     const baseUrl = `${protocol}://${host}`;
 
     try {
+      const formattedFile = (v.file || []).map(f => ({
+        ...f,
+        url: f.url ? (f.url.startsWith("http") ? f.url : `${baseUrl}${f.url}`) : ""
+      }));
+      const formattedImage = (v.image || []).map(img => ({
+        ...img,
+        url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
+      }));
+      const formattedPrice = (v.price || []).map(p => ({
+        ...p,
+        colors: (p.VehicleColor || []).map(c => {
+          const colorObj = (v.image || []).find(img => img && img.id === c.colorId) || null;
+          const formattedColorObj = colorObj ? {
+            ...colorObj,
+            url: colorObj.url ? (colorObj.url.startsWith("http") ? colorObj.url : `${baseUrl}${colorObj.url}`) : ""
+          } : null;
+          return {
+            ...c,
+            color: formattedColorObj,
+            imageDetails: formattedColorObj ? [formattedColorObj] : []
+          };
+        })
+      }));
+
       const formatted = {
         ...v,
-        manufacturer: v.Manufacturer || null,
-        file: (v.files || []).map(f => ({
-          ...f,
-          url: f.url ? (f.url.startsWith("http") ? f.url : `${baseUrl}${f.url}`) : ""
-        })),
-        image: (v.images || []).map(img => ({
-          ...img,
-          url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
-        })),
-        hsn: v.Hsn || null,
-        price: (v.prices || []).map(p => ({
-          ...p,
-          colors: (p.VehicleColor || []).map(c => {
-            const colorObj = (v.images || []).find(img => img && img.id === c.colorId) || null;
-            const formattedColorObj = colorObj ? {
-              ...colorObj,
-              url: colorObj.url ? (colorObj.url.startsWith("http") ? colorObj.url : `${baseUrl}${colorObj.url}`) : ""
-            } : null;
-            return {
-              ...c,
-              color: formattedColorObj,
-              imageDetails: formattedColorObj ? [formattedColorObj] : []
-            };
-          })
-        }))
+        manufacturer: v.manufacturer || null,
+        Manufacturer: v.manufacturer || null,
+        file: formattedFile,
+        files: formattedFile,
+        image: formattedImage,
+        images: formattedImage,
+        hsn: v.hsn || null,
+        Hsn: v.hsn || null,
+        price: formattedPrice,
+        prices: formattedPrice
       };
       return formatted;
     } catch (error) {
@@ -148,7 +157,7 @@ class VehicleMasterController {
         noOfServices: noOfServices ? parseInt(noOfServices) : 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        files: file.length > 0 ? {
+        file: file.length > 0 ? {
           create: file.map(f => ({
             name: f.name,
             url: f.url,
@@ -157,7 +166,7 @@ class VehicleMasterController {
             updatedAt: new Date()
           }))
         } : undefined,
-        images: image.length > 0 ? {
+        image: image.length > 0 ? {
           create: image.map(img => ({
             color: img.color,
             code: img.code,
@@ -179,10 +188,10 @@ class VehicleMasterController {
       };
 
       if (manufacturer) {
-        createData.Manufacturer = { connect: { id: manufacturer } };
+        createData.manufacturer = { connect: { id: manufacturer } };
       }
       if (hsn) {
-        createData.Hsn = { connect: { id: hsn } };
+        createData.hsn = { connect: { id: hsn } };
       }
       if (user) {
         createData.User = { connect: { id: user } };
@@ -276,7 +285,7 @@ class VehicleMasterController {
       const manufacturerIds = branches.flatMap(b => b.manufacturer.map(m => m.id));
 
       const where = {
-        manufacturer: { in: manufacturerIds },
+        manufacturerId: { in: manufacturerIds },
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
           { modelCode: { contains: inputValue, mode: 'insensitive' } },
@@ -300,7 +309,11 @@ class VehicleMasterController {
         response: {
           code: 200,
           msg: "Vehicle Masters  fetched",
-          data: { count, VehicleMaster: vehicles.map(v => this.formatVehicleMaster(v, req)) }
+          data: { 
+            count, 
+            VehicleMaster: vehicles.map(v => this.formatVehicleMaster(v, req)),
+            vehicleMaster: vehicles.map(v => this.formatVehicleMaster(v, req))
+          }
         }
       });
     } catch (err) {
@@ -331,7 +344,7 @@ class VehicleMasterController {
       const inputValue = searchString || "";
 
       const where = {
-        manufacturer: id,
+        manufacturerId: id,
         vehicleStatus: onlyAvailable && parseInt(onlyAvailable) === 1 ? "AVAILABLE" : undefined,
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
@@ -384,7 +397,7 @@ class VehicleMasterController {
       const inputValue = searchString || "";
 
       const where = {
-        manufacturer: id,
+        manufacturerId: id,
         vehicleStatus: onlyAvailable && parseInt(onlyAvailable) === 1 ? "AVAILABLE" : undefined,
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
@@ -582,15 +595,15 @@ class VehicleMasterController {
       };
 
       if (manufacturer) {
-        updateData.Manufacturer = { connect: { id: manufacturer } };
+        updateData.manufacturer = { connect: { id: manufacturer } };
       } else {
-        updateData.Manufacturer = { disconnect: true };
+        updateData.manufacturer = { disconnect: true };
       }
 
       if (hsn) {
-        updateData.Hsn = { connect: { id: hsn } };
+        updateData.hsn = { connect: { id: hsn } };
       } else {
-        updateData.Hsn = { disconnect: true };
+        updateData.hsn = { disconnect: true };
       }
 
       // Handle services upsert
@@ -619,7 +632,7 @@ class VehicleMasterController {
 
       // Handle files upsert
       if (file && Array.isArray(file)) {
-        updateData.files = {
+        updateData.file = {
           upsert: file.map(f => ({
             where: { id: f.id || "new-file" },
             update: {
@@ -641,7 +654,7 @@ class VehicleMasterController {
 
       // Handle images upsert
       if (image && Array.isArray(image)) {
-        updateData.images = {
+        updateData.image = {
           upsert: image.map(img => ({
             where: { id: img.id || "new-image" },
             update: {

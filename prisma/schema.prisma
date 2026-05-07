@@ -139,6 +139,7 @@ model User {
   EmployeeProfile_User_profileToEmployeeProfile EmployeeProfile?               @relation("User_profileToEmployeeProfile", fields: [profile], references: [id], onUpdate: NoAction)
   createdVehicles                               Vehicle[]                      @relation("SoldVehicleWasCreatedByUser")
   VehicleMaster                                 VehicleMaster[]
+  VehicleInventory                              VehicleInventory[]
   createdVehPrices                              VehiclePrice[]                 @relation("VehiclePriceWasCreatedBy")
   VehiclePurchaseChallan                        VehiclePurchaseChallan[]
   VehiclePurchaseInvoice                        VehiclePurchaseInvoice[]
@@ -637,9 +638,9 @@ model VehicleMaster {
   noOfServices                              Int?
   createdAt                                 DateTime
   updatedAt                                 DateTime                 @updatedAt
-  hsn                                       String?                  @db.VarChar(25)
-  manufacturer                              String?                  @db.VarChar(25)
-  createdBy                                 String?                  @db.VarChar(25)
+  hsnId                                     String?                  @map("hsn") @db.VarChar(25)
+  manufacturerId                            String?                  @map("manufacturer") @db.VarChar(25)
+  createdById                               String?                  @map("createdBy") @db.VarChar(25)
   serviceIntervalKm                         Int?
   serviceIntervalTime                       Int?
   bookings                                  Booking[]                @relation("BookingHasVehicleMaster")
@@ -648,14 +649,14 @@ model VehicleMaster {
   purchasedVehicles                         PurchasedVehicleDetail[] @relation("VehicleDetailHasVehicleMaster")
   quotationVehicles                         QuotationVehicle[]       @relation("QuotationVehicleHasVehicle")
   vehicles                                  Vehicle[]                @relation("SoldVehicleHaveVehicleMaster")
-  VehicleInventory                          VehicleInventory[]
-  User                                      User?                    @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
-  Hsn                                       Hsn?                     @relation(fields: [hsn], references: [id], onUpdate: NoAction)
-  Manufacturer                              Manufacturer?            @relation(fields: [manufacturer], references: [id], onUpdate: NoAction)
-  prices                                    VehiclePrice[]           @relation("VehiclePriceBelongsToVehicleMaster")
+  vehicleInventory                          VehicleInventory[]
+  User                                      User?                    @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+  hsn                                       Hsn?                     @relation(fields: [hsnId], references: [id], onUpdate: NoAction)
+  manufacturer                              Manufacturer?            @relation(fields: [manufacturerId], references: [id], onUpdate: NoAction)
+  price                                     VehiclePrice[]           @relation("VehiclePriceBelongsToVehicleMaster")
   pmcs                                      PMC[]                    @relation("PMChasManyVehicles")
-  files                                     File[]                   @relation("VehicleMasterHasFile")
-  images                                    Image[]                  @relation("VehicleMasterHasImage")
+  file                                      File[]                   @relation("VehicleMasterHasFile")
+  image                                     Image[]                  @relation("VehicleMasterHasImage")
   services                                  Service[]                @relation("VehicleMasterHasService")
   VehiclePrice_VehicleMasterHasVehiclePrice VehiclePrice[]           @relation("VehicleMasterHasVehiclePrice")
 }
@@ -846,20 +847,22 @@ model VehicleInventory {
   id                       String                     @id @default(cuid()) @db.VarChar(25)
   createdAt                DateTime
   Status                   String?
-  color                    String?                    @db.VarChar(25)
-  vehicle                  String?                    @db.VarChar(25)
-  branch                   String?                    @db.VarChar(25)
-  vehiclePurchase          String?                    @db.VarChar(25)
+  colorId                  String?                    @map("color") @db.VarChar(25)
+  vehicleId                String?                    @map("vehicle") @db.VarChar(25)
+  branchId                 String?                    @map("branch") @db.VarChar(25)
+  vehiclePurchaseId        String?                    @map("vehiclePurchase") @db.VarChar(25)
   chassisNo                String?
   engineNo                 String?
   keyNo                    String?
   warrantyBookNo           String?
   batteryNo                String?
   manMonthYear             String?
-  Branch                   Branch?                    @relation(fields: [branch], references: [id], onUpdate: NoAction)
-  Image                    Image?                     @relation(fields: [color], references: [id], onUpdate: NoAction)
-  VehiclePurchaseInvoice   VehiclePurchaseInvoice?    @relation(fields: [vehiclePurchase], references: [id], onUpdate: NoAction)
-  VehicleMaster            VehicleMaster?             @relation(fields: [vehicle], references: [id], onUpdate: NoAction)
+  createdById              String?                    @map("createdBy") @db.VarChar(25)
+  branch                   Branch?                    @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  color                    Image?                     @relation(fields: [colorId], references: [id], onUpdate: NoAction)
+  vehiclePurchase          VehiclePurchaseInvoice?    @relation(fields: [vehiclePurchaseId], references: [id], onUpdate: NoAction)
+  vehicle                  VehicleMaster?             @relation(fields: [vehicleId], references: [id], onUpdate: NoAction)
+  createdBy                User?                      @relation(fields: [createdById], references: [id], onUpdate: NoAction)
   VehicleInventoryTransfer VehicleInventoryTransfer[]
 }
 
@@ -2336,9 +2339,9 @@ model VehiclePurchaseInvoice {
   invoiceDate                DateTime?
   createdAt                  DateTime
   updatedAt                  DateTime                     @updatedAt
-  createdBy                  String?                      @db.VarChar(25)
+  createdById                String?                      @map("createdBy") @db.VarChar(25)
   quantity                   Int?
-  purchaseChallan            String?                      @db.VarChar(25)
+  purchaseChallanId          String?                      @map("purchaseChallan") @db.VarChar(25)
   amount                     Decimal?
   grossTotal                 Decimal?
   netAmount                  Decimal?
@@ -2346,9 +2349,9 @@ model VehiclePurchaseInvoice {
   others                     Decimal?
   dependency                 String[]
   // PurchaseInvoice_dependency PurchaseInvoice_dependency[]
-  VehicleInventory           VehicleInventory[]
-  User                       User?                        @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
-  VehiclePurchaseChallan     VehiclePurchaseChallan?      @relation(fields: [purchaseChallan], references: [id], onUpdate: NoAction)
+  vehicleInventory           VehicleInventory[]
+  User                       User?                        @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+  purchaseChallan            VehiclePurchaseChallan?      @relation(fields: [purchaseChallanId], references: [id], onUpdate: NoAction)
   purchaseReturns            VehiclePurchaseReturn[]      @relation("PurchaseReturnHasPurchaseInvoice")
 }
 
@@ -2371,15 +2374,15 @@ model VehiclePurchaseChallan {
   supplierChallanNo                String?
   createdAt                        DateTime
   updatedAt                        DateTime                           @updatedAt
-  supplier                         String?                            @db.VarChar(25)
-  branch                           String?                            @db.VarChar(25)
-  createdBy                        String?                            @db.VarChar(25)
+  supplierId                       String?                            @map("supplier") @db.VarChar(25)
+  branchId                         String?                            @map("branch") @db.VarChar(25)
+  createdById                      String?                            @map("createdBy") @db.VarChar(25)
   challanNo                        String?                            @unique(map: "default$default.PurchaseChallan.challanNo._UNIQUE")
   challanDate                      DateTime?
-  Branch                           Branch?                            @relation(fields: [branch], references: [id], onUpdate: NoAction)
-  User                             User?                              @relation(fields: [createdBy], references: [id], onUpdate: NoAction)
-  Supplier                         Supplier?                          @relation(fields: [supplier], references: [id], onUpdate: NoAction)
-  VehiclePurchaseInvoice           VehiclePurchaseInvoice[]
+  branch                           Branch?                            @relation(fields: [branchId], references: [id], onUpdate: NoAction)
+  User                             User?                              @relation(fields: [createdById], references: [id], onUpdate: NoAction)
+  supplier                         Supplier?                          @relation(fields: [supplierId], references: [id], onUpdate: NoAction)
+  vehiclePurchaseInvoice           VehiclePurchaseInvoice[]
   purchaseReturns                  VehiclePurchaseReturn[]            @relation("PurchaseReturnHasPurchaseChallan")
   PurchaseChallanHasVehicleDetails PurchaseChallanHasVehicleDetails[]
 }
