@@ -193,81 +193,93 @@ class VehicleInventoryController {
       const searchTerm = `%${inputValue}%`;
 
       let rows;
-      let countRows;
 
       if (inputValue.trim() !== "") {
-        // Search query with filter
+        // Search query — group by vehicle+color, aggregate branches
         rows = await prisma.$queryRaw`
-          WITH VehicleCounts AS (
-            SELECT "vehicle" AS vid, "color" AS cid, "branch" AS bid, COUNT(*) AS quantity
-            FROM "VehicleInventory"
-            WHERE "branch" = ANY(${branchIds})
-            GROUP BY "vehicle", "color", "branch"
+          WITH Grouped AS (
+            SELECT
+              vi."vehicle" AS vehicle_id,
+              vi."color" AS color_id,
+              SUM(1) AS quantity,
+              STRING_AGG(DISTINCT b.name, ', ' ORDER BY b.name) AS branch_names,
+              MAX(vi.id) AS sample_id,
+              MAX(vi."Status") AS status,
+              (
+                SELECT COUNT(DISTINCT CONCAT(vi2."vehicle", vi2."color"))
+                FROM "VehicleInventory" vi2
+                LEFT JOIN "VehicleMaster" v2 ON vi2.vehicle = v2.id
+                LEFT JOIN "Image" c2 ON vi2.color = c2.id
+                WHERE vi2.branch = ANY(${branchIds})
+                  AND (v2."modelName" ILIKE ${searchTerm} OR v2."modelCode" ILIKE ${searchTerm}
+                    OR v2.category ILIKE ${searchTerm} OR c2.color ILIKE ${searchTerm}
+                    OR c2.code ILIKE ${searchTerm} OR vi2."chassisNo" ILIKE ${searchTerm})
+              ) AS total_count
+            FROM "VehicleInventory" vi
+            LEFT JOIN "Branch" b ON vi.branch = b.id
+            LEFT JOIN "VehicleMaster" v ON vi.vehicle = v.id
+            LEFT JOIN "Image" c ON vi.color = c.id
+            WHERE vi.branch = ANY(${branchIds})
+              AND (v."modelName" ILIKE ${searchTerm} OR v."modelCode" ILIKE ${searchTerm}
+                OR v.category ILIKE ${searchTerm} OR c.color ILIKE ${searchTerm}
+                OR c.code ILIKE ${searchTerm} OR vi."chassisNo" ILIKE ${searchTerm})
+            GROUP BY vi."vehicle", vi."color"
           )
-          SELECT DISTINCT ON (vi."vehicle", vi."color", vi."branch")
-            vi.id,
-            vi."vehicle" AS vehicle_id,
-            vi."color" AS color_id,
-            vi."branch" AS branch_id,
-            vi."Status",
+          SELECT
+            g.sample_id AS id,
+            g.vehicle_id,
+            g.color_id,
+            g.quantity,
+            g.branch_names,
+            g.status,
+            g.total_count,
             v."modelName",
             v."modelCode",
             v.category,
             c.url,
             c.code,
-            c.color AS color_name,
-            vc.quantity AS quantity,
-            b.name AS branch_name,
-            (
-              SELECT COUNT(*) FROM "VehicleInventory" vi2
-              LEFT JOIN "VehicleMaster" v2 ON vi2.vehicle = v2.id
-              LEFT JOIN "Image" c2 ON vi2.color = c2.id
-              WHERE vi2.branch = ANY(${branchIds})
-                AND (v2."modelName" ILIKE ${searchTerm} OR v2."modelCode" ILIKE ${searchTerm}
-                  OR v2.category ILIKE ${searchTerm} OR c2.color ILIKE ${searchTerm}
-                  OR c2.code ILIKE ${searchTerm} OR vi2."chassisNo" ILIKE ${searchTerm})
-            ) AS total_count
-          FROM "VehicleInventory" vi
-          LEFT JOIN "VehicleMaster" v ON vi.vehicle = v.id
-          LEFT JOIN "Image" c ON vi.color = c.id
-          LEFT JOIN VehicleCounts vc ON vi.vehicle = vc.vid AND vi.color = vc.cid AND vi.branch = vc.bid
-          LEFT JOIN "Branch" b ON vi.branch = b.id
-          WHERE vi.branch = ANY(${branchIds})
-            AND (v."modelName" ILIKE ${searchTerm} OR v."modelCode" ILIKE ${searchTerm}
-              OR v.category ILIKE ${searchTerm} OR c.color ILIKE ${searchTerm}
-              OR c.code ILIKE ${searchTerm} OR vi."chassisNo" ILIKE ${searchTerm})
+            c.color AS color_name
+          FROM Grouped g
+          LEFT JOIN "VehicleMaster" v ON g.vehicle_id = v.id
+          LEFT JOIN "Image" c ON g.color_id = c.id
+          ORDER BY v."modelName", c.color
           LIMIT ${size} OFFSET ${pg}
         `;
       } else {
-        // No search — return all grouped rows
+        // No search — group by vehicle+color, aggregate branches
         rows = await prisma.$queryRaw`
-          WITH VehicleCounts AS (
-            SELECT "vehicle" AS vid, "color" AS cid, "branch" AS bid, COUNT(*) AS quantity
-            FROM "VehicleInventory"
-            WHERE "branch" = ANY(${branchIds})
-            GROUP BY "vehicle", "color", "branch"
+          WITH Grouped AS (
+            SELECT
+              vi."vehicle" AS vehicle_id,
+              vi."color" AS color_id,
+              COUNT(*) AS quantity,
+              STRING_AGG(DISTINCT b.name, ', ' ORDER BY b.name) AS branch_names,
+              MAX(vi.id) AS sample_id,
+              MAX(vi."Status") AS status,
+              (SELECT COUNT(DISTINCT CONCAT("vehicle", "color")) FROM "VehicleInventory" WHERE "branch" = ANY(${branchIds})) AS total_count
+            FROM "VehicleInventory" vi
+            LEFT JOIN "Branch" b ON vi.branch = b.id
+            WHERE vi.branch = ANY(${branchIds})
+            GROUP BY vi."vehicle", vi."color"
           )
-          SELECT DISTINCT ON (vi."vehicle", vi."color", vi."branch")
-            vi.id,
-            vi."vehicle" AS vehicle_id,
-            vi."color" AS color_id,
-            vi."branch" AS branch_id,
-            vi."Status",
+          SELECT
+            g.sample_id AS id,
+            g.vehicle_id,
+            g.color_id,
+            g.quantity,
+            g.branch_names,
+            g.status,
+            g.total_count,
             v."modelName",
             v."modelCode",
             v.category,
             c.url,
             c.code,
-            c.color AS color_name,
-            vc.quantity AS quantity,
-            b.name AS branch_name,
-            (SELECT COUNT(*) FROM VehicleCounts) AS total_count
-          FROM "VehicleInventory" vi
-          LEFT JOIN "VehicleMaster" v ON vi.vehicle = v.id
-          LEFT JOIN "Image" c ON vi.color = c.id
-          LEFT JOIN VehicleCounts vc ON vi.vehicle = vc.vid AND vi.color = vc.cid AND vi.branch = vc.bid
-          LEFT JOIN "Branch" b ON vi.branch = b.id
-          WHERE vi.branch = ANY(${branchIds})
+            c.color AS color_name
+          FROM Grouped g
+          LEFT JOIN "VehicleMaster" v ON g.vehicle_id = v.id
+          LEFT JOIN "Image" c ON g.color_id = c.id
+          ORDER BY v."modelName", c.color
           LIMIT ${size} OFFSET ${pg}
         `;
       }
@@ -290,7 +302,7 @@ class VehicleInventoryController {
       }
 
       // Format rows to match legacy shape
-      // Note: Prisma $queryRaw preserves quoted column names casing, unquoted become lowercase
+      // Note: Prisma $queryRaw returns unquoted identifiers as lowercase
       const VehicleInventory = rows.map(r => {
         const colorObj = {
           id: r.color_id,
@@ -298,29 +310,26 @@ class VehicleInventoryController {
           code: r.code || "",
           color: r.color_name || ""
         };
-        const branchObj = {
-          id: r.branch_id,
-          name: r.branch_name || ""
-        };
+        const branchNames = r.branch_names || "";
         return {
           id: r.id,
-          // Vehicle master id (used by VehicleModal to fetch individual records)
+          // Vehicle master id — used by VehicleModal to fetch individual records
           vehicle: r.vehicle_id,
           vehicleId: r.vehicle_id,
           // Flat fields for table columns
           modelName: r.modelname || r.modelName || "",
           modelCode: r.modelcode || r.modelCode || "",
           category: r.category || "",
-          Status: r.Status || r.status || "Avaliable",
-          quantity: Number(r.quantity) || 1,
-          // Nested objects for column renderers
+          Status: r.status || "Avaliable",
+          quantity: Number(r.quantity) || 0,
+          // Color nested object for the Color column renderer + hover popover
           color: colorObj,
-          branch: branchObj,
-          // Aliases for backward compat
+          // Branch as object: name is the comma-separated location string
+          branch: { name: branchNames },
+          // Aliases
           colorId: r.color_id,
-          branchId: r.branch_id,
-          location: r.branch_name || "",
-          branchName: r.branch_name || "",
+          location: branchNames,
+          branchName: branchNames,
           colorName: r.color_name || "",
           imageDetails: r.url ? [{ id: r.color_id, url: r.url, color: r.color_name, code: r.code }] : []
         };
@@ -418,13 +427,32 @@ class VehicleInventoryController {
   getVehiclesByModel = async (req, res) => {
     try {
       const { vehicle: vehicleMasterId, color: colorId, branch } = req.body;
-      const branchIds = Array.isArray(branch) ? branch : (branch ? [branch] : []);
+      
+      // Debug log — remove once confirmed working
+      logger.info(`getVehiclesByModel called: vehicle=${vehicleMasterId}, color=${colorId}, branch=${JSON.stringify(branch)}`);
+
+      // Normalize branch IDs — accept array of objects or strings
+      let branchIds = [];
+      if (Array.isArray(branch)) {
+        branchIds = branch.map(b => (typeof b === 'object' && b !== null) ? b.id : b).filter(Boolean);
+      } else if (branch) {
+        branchIds = [branch];
+      }
+
+      // Fall back to token branches if none passed
+      if (branchIds.length === 0) {
+        const tokenBranches = req.user?.branch || [];
+        branchIds = Array.isArray(tokenBranches) ? tokenBranches : [tokenBranches];
+      }
 
       const where = {
         ...(vehicleMasterId ? { vehicleId: vehicleMasterId } : {}),
         ...(colorId ? { colorId } : {}),
+        // Only apply branch filter if we actually have branch IDs
         ...(branchIds.length > 0 ? { branchId: { in: branchIds } } : {})
       };
+
+      logger.info(`getVehiclesByModel WHERE: ${JSON.stringify(where)}`);
 
       const inventories = await prisma.vehicleInventory.findMany({
         where,

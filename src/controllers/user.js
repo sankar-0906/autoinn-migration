@@ -570,9 +570,8 @@ class UserController {
 
       const payload = {
         id: user.id,
-        branch: (formattedUser.profile?.branch?.length > 0) 
-          ? formattedUser.profile.branch[0].id 
-          : null
+        // Embed ALL branch IDs so backend can filter correctly
+        branch: formattedUser.profile?.branch?.map(b => b.id) || []
       };
 
       const token = await JWT.sign(payload, "2d");
