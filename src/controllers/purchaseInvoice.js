@@ -33,7 +33,7 @@ class PurchaseInvoiceController {
               include: {
                 vehicle: {
                   include: {
-                    Manufacturer: true,
+                    manufacturer: true,
                     images: true,
                     files: true,
                     Hsn: true
@@ -68,7 +68,7 @@ class PurchaseInvoiceController {
           engineNo: detail.engineNo?.toUpperCase(),
           vehicle: detail.vehicle ? {
             ...detail.vehicle,
-            manufacturer: detail.vehicle.Manufacturer,
+            manufacturer: detail.vehicle.manufacturer,
             image: detail.vehicle.images, // Frontend often expects 'image' or 'images'
             file: detail.vehicle.files,
             hsn: detail.vehicle.Hsn
@@ -113,7 +113,7 @@ class PurchaseInvoiceController {
 
       // 1. Chassis number validation
       for (const item of selectVehicle) {
-        const manufacturerId = item.vehicle?.Manufacturer?.id || null;
+        const manufacturerId = item.vehicle?.manufacturer?.id || null;
         const exists = await this.checkChassisNumberInternal(item.chassisNo, manufacturerId);
         if (exists.duplicate) {
           return res.json({

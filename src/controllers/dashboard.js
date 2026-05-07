@@ -85,7 +85,7 @@ class DashboardController {
             assignedExecutive: { include: { EmployeeProfile_User_profileToEmployeeProfile: true } },
             QuotationVehicle: { 
               include: { 
-                vehicleDetail: { include: { Manufacturer: true } } 
+                vehicleDetail: { include: { manufacturer: true } } 
               } 
             }
           }
@@ -96,7 +96,7 @@ class DashboardController {
           orderBy: { createdAt: 'desc' },
           include: {
             customer: { include: { CustomerPhone: true } },
-            vehicle: { include: { Manufacturer: true } },
+            vehicle: { include: { manufacturer: true } },
             executive: { include: { EmployeeProfile_User_profileToEmployeeProfile: true } },
             color: true,
             branch: true

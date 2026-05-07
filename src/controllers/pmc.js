@@ -10,7 +10,7 @@ class PMCController {
   pmcInclude = {
     vehicleMasters: {
       include: {
-        Manufacturer: true
+        manufacturer: true
       }
     },
     PmcPartItem: {

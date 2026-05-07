@@ -25,7 +25,7 @@ class BookingController {
     },
     vehicle: {
       include: {
-        Manufacturer: true,
+        manufacturer: true,
         prices: true
       }
     },
@@ -69,7 +69,7 @@ class BookingController {
     if (formatted.vehicle) {
       formatted.vehicle = {
         ...formatted.vehicle,
-        manufacturer: formatted.vehicle.Manufacturer,
+        manufacturer: formatted.vehicle.manufacturer,
         price: formatted.vehicle.prices
       };
     }

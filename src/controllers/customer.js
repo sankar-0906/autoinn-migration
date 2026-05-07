@@ -37,7 +37,7 @@ class CustomerController {
           include: {
             vehicleDetail: {
               include: {
-                Manufacturer: true,
+                manufacturer: true,
                 images: true,
                 prices: true
               }
@@ -51,7 +51,7 @@ class CustomerController {
       include: {
         vehicle: {
           include: {
-            Manufacturer: true,
+            manufacturer: true,
             prices: true
           }
         },
@@ -81,7 +81,7 @@ class CustomerController {
                 ...q.QuotationVehicle[0],
                 vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
                     ...q.QuotationVehicle[0].vehicleDetail,
-                    manufacturer: q.QuotationVehicle[0].vehicleDetail.Manufacturer,
+                    manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
                     image: q.QuotationVehicle[0].vehicleDetail.images,
                     price: q.QuotationVehicle[0].vehicleDetail.prices
                 } : null
@@ -94,7 +94,7 @@ class CustomerController {
             ...b,
             vehicle: b.vehicle ? {
                 ...b.vehicle,
-                manufacturer: b.vehicle.Manufacturer,
+                manufacturer: b.vehicle.manufacturer,
                 price: b.vehicle.prices
             } : null
         }));
@@ -303,7 +303,7 @@ class CustomerController {
             ...this.customerInclude,
             Vehicle: { // Many-to-many through CustomerHasVehicle
                 include: {
-                    vehicleMaster: { include: { Manufacturer: true } },
+                    vehicleMaster: { include: { manufacturer: true } },
                     color: true,
                     Customer: { include: { CustomerPhone: true } }
                 }
@@ -502,7 +502,7 @@ class CustomerController {
               ...q.QuotationVehicle[0],
               vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
                   ...q.QuotationVehicle[0].vehicleDetail,
-                  manufacturer: q.QuotationVehicle[0].vehicleDetail.Manufacturer,
+                  manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
                   image: q.QuotationVehicle[0].vehicleDetail.images,
                   price: q.QuotationVehicle[0].vehicleDetail.prices
               } : null

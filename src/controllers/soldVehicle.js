@@ -10,7 +10,7 @@ class SoldVehicleController {
   // Shared include object for Vehicle (legacy SoldVehicle)
   soldInclude = {
     vehicleMaster: {
-      include: { Manufacturer: true, files: true, images: true, prices: true, services: true }
+      include: { manufacturer: true, files: true, images: true, prices: true, services: true }
     },
     Customer: {
       include: { CustomerPhone: true }
@@ -41,7 +41,7 @@ class SoldVehicleController {
     if (vehicleMaster) {
       formattedVehicleMaster = {
         ...vehicleMaster,
-        manufacturer: vehicleMaster.Manufacturer,
+        manufacturer: vehicleMaster.manufacturer,
         image: vehicleMaster.images,
         price: vehicleMaster.prices,
         file: vehicleMaster.files

@@ -18,7 +18,7 @@ class VehiclePriceController {
   priceInclude = {
     vehicleModel: {
       include: {
-        Manufacturer: true,
+        manufacturer: true,
         images: true
       }
     },
@@ -50,7 +50,7 @@ class VehiclePriceController {
       discount: p.discount ? Number(p.discount) : 0,
       vehicleModel: p.vehicleModel ? {
         ...p.vehicleModel,
-        manufacturer: p.vehicleModel.Manufacturer || null,
+        manufacturer: p.vehicleModel.manufacturer || null,
         image: (p.vehicleModel.images || []).map(img => ({
           ...img,
           url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""

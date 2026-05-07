@@ -15,7 +15,7 @@ class JobOrderController {
       include: {
         manufacturer: true, // Lowercase in Vehicle model
         vehicleMaster: {
-          include: { Manufacturer: true } // Uppercase in VehicleMaster model
+          include: { manufacturer: true } // Uppercase in VehicleMaster model
         },
         color: true
       }

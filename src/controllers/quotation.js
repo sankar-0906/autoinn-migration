@@ -33,7 +33,7 @@ class QuotationController {
       include: {
         vehicleDetail: {
           include: {
-            Manufacturer: true,
+            manufacturer: true,
             images: true,
             prices: true
           }
@@ -76,7 +76,7 @@ class QuotationController {
         ...qv,
         vehicleDetail: qv.vehicleDetail ? {
           ...qv.vehicleDetail,
-          manufacturer: qv.vehicleDetail.Manufacturer,
+          manufacturer: qv.vehicleDetail.manufacturer,
           image: qv.vehicleDetail.images,
           price: qv.vehicleDetail.prices
         } : null,
