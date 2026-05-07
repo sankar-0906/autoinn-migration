@@ -264,21 +264,9 @@ class VehicleMasterController {
 
       // Robust Branch/Manufacturer filtering logic
       let branchIds = req.user?.branch || [];
-      const userId = req.user?.id || req.headers["user-id"];
-
-      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0)) && userId) {
-        const userWithBranches = await prisma.user.findUnique({
-          where: { id: userId },
-          include: {
-            EmployeeProfile_User_profileToEmployeeProfile: { include: { branch: true } },
-            branches: true
-          }
-        });
-        if (userWithBranches) {
-          const profileBranches = userWithBranches.EmployeeProfile_User_profileToEmployeeProfile?.branch?.map(b => b.id) || [];
-          const userBranches = userWithBranches.branches?.map(b => b.id) || [];
-          branchIds = [...new Set([...profileBranches, ...userBranches])];
-        }
+      // Default to Devanahalli if no branches assigned
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+        branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
       }
 
       const branches = await prisma.branch.findMany({

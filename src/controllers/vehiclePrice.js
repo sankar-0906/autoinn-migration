@@ -260,12 +260,18 @@ class VehiclePriceController {
   getPage = async (req, res) => {
     try {
       const { page, size, searchString, validity } = req.body;
-      const branchIds = req.user?.branch || [];
+      // Robust Branch/Manufacturer filtering logic
+      let branchIds = req.user?.branch || [];
       const parsedPage = parseInt(page) || 1;
       const parsedSize = parseInt(size) || 10;
       const skip = (parsedPage - 1) * parsedSize;
       const inputValue = searchString || "";
       const tCased = await titleCase(inputValue);
+
+      // Default to Devanahalli if no branches assigned
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+        branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
+      }
 
       // Fetch manufacturers for the user's branches
       const branches = await prisma.branch.findMany({

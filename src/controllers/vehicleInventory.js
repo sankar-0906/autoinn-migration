@@ -53,8 +53,7 @@ class VehicleInventoryController {
             manMonthYear: detail.manMonthYear,
             Status: "Avaliable",
             createdAt: new Date(),
-            updatedAt: new Date(),
-            vehicle: { connect: { id: detail.vehicle } },
+            VehicleMaster: { connect: { id: detail.vehicle } },
             branch: inventoryBranch ? { connect: { id: inventoryBranch } } : undefined,
             color: detail.color ? { connect: { id: detail.color } } : undefined,
             createdBy: user ? { connect: { id: user } } : undefined
@@ -132,12 +131,12 @@ class VehicleInventoryController {
       const tCased = await titleCase(inputValue);
 
       const where = {
-        branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] },
+        branch: { in: Array.isArray(branchIds) ? branchIds : [branchIds] },
         OR: [
           { chassisNo: { contains: inputValue, mode: 'insensitive' } },
           { engineNo: { contains: inputValue, mode: 'insensitive' } },
-          { vehicle: { modelName: { contains: inputValue, mode: 'insensitive' } } },
-          { vehicle: { modelName: { contains: tCased, mode: 'insensitive' } } }
+          { VehicleMaster: { modelName: { contains: inputValue, mode: 'insensitive' } } },
+          { VehicleMaster: { modelName: { contains: tCased, mode: 'insensitive' } } }
         ]
       };
 
@@ -171,7 +170,7 @@ class VehicleInventoryController {
       const { branch } = req.body;
       const counts = await prisma.vehicleInventory.groupBy({
         by: ['Status'],
-        where: { branchId: branch },
+        where: { branch: branch },
         _count: { _all: true }
       });
 

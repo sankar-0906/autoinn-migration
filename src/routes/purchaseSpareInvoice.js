@@ -9,6 +9,8 @@ router.use(auth);
 
 router.post("/", controller.createPurchaseSpareInvoice);
 router.get("/:id", controller.getOne);
+router.put("/:id", controller.updatePurchaseSpareInvoice);
+router.delete("/:id", controller.deletePurchaseSpareInvoice);
 router.post("/get", controller.getPage);
 router.post("/checkDuplicateInvoiceNo", controller.checkDuplicateInvoiceNo);
 

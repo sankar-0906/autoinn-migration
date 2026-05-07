@@ -14,11 +14,18 @@ class OptionsListController {
       const skip = (parsedPage - 1) * parsedSize;
       const take = parsedSize === 0 ? undefined : parsedSize;
 
-      let optionsList = [];
-      const queryStr = searchString || "";
-      const orConditions = [
-        { [column]: { contains: queryStr, mode: 'insensitive' } }
-      ];
+      // Fetch manufacturers associated with the user's branches for filtering
+      let branchIds = req.body.branch || req.user?.branch || [];
+      // Default to Devanahalli if no branches assigned
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+        branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
+      }
+
+      const userBranches = await prisma.branch.findMany({
+        where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        include: { manufacturer: true }
+      });
+      const allowedManufacturerIds = userBranches.flatMap(b => b.manufacturer.map(m => m.id));
 
       switch (table) {
         case "customers":
@@ -67,6 +74,7 @@ class OptionsListController {
         case "vehicleMastersPMC":
           optionsList = await prisma.vehicleMaster.findMany({
             where: {
+              manufacturer: { in: allowedManufacturerIds },
               vehicleStatus: table === "vehicleMasters" ? "AVAILABLE" : undefined,
               OR: [
                 { modelName: { contains: queryStr, mode: 'insensitive' } },
@@ -81,6 +89,7 @@ class OptionsListController {
         case "partsMasters":
           optionsList = await prisma.partsMaster.findMany({
             where: {
+              manufacturerId: { in: allowedManufacturerIds },
               OR: [
                 { partName: { contains: queryStr, mode: 'insensitive' } },
                 { partNumber: { contains: queryStr, mode: 'insensitive' } }
@@ -94,6 +103,7 @@ class OptionsListController {
         case "vehicles":
           optionsList = await prisma.vehicle.findMany({
             where: {
+              manufacturer: { in: allowedManufacturerIds },
               OR: [
                 { registerNo: { contains: queryStr, mode: 'insensitive' } },
                 { chassisNo: { contains: queryStr, mode: 'insensitive' } },
@@ -147,10 +157,20 @@ class OptionsListController {
           const prismaModel = modelMapping[table] || table.replace(/s$/, ""); // Simple plural to singular
           
           if (prisma[prismaModel]) {
+            const where = {
+              OR: orConditions
+            };
+
+            // Specific filtering for manufacturers
+            if (table === "manufacturers") {
+              where.id = { in: allowedManufacturerIds };
+              if (req.body.vehicleManufacturer !== undefined) {
+                where.vehicleManufacturer = req.body.vehicleManufacturer === true || req.body.vehicleManufacturer === "true";
+              }
+            }
+
             optionsList = await prisma[prismaModel].findMany({
-              where: {
-                OR: orConditions
-              },
+              where,
               take,
               skip
             });

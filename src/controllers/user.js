@@ -299,9 +299,9 @@ class UserController {
               createdAt: new Date(),
               updatedAt: new Date(),
               department: department ? { connect: { id: department } } : undefined,
-              branch: branch && branch.length > 0 ? {
+              branch: (branch && branch.length > 0) ? {
                 connect: branch.map(id => ({ id }))
-              } : undefined,
+              } : { connect: { id: "ck8g589vj499008806oh90nmx" } }, // Default: Devanahalli
               bankDetails: {
                 create: {
                   name,

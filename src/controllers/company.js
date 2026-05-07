@@ -283,6 +283,22 @@ class CompanyController {
         include: this.branchInclude
       });
 
+      // Link the new branch to the creator's employee profile so it appears in their global branch selector
+      if (user) {
+        const creator = await prisma.user.findUnique({
+          where: { id: user },
+          select: { profile: true }
+        });
+        if (creator && creator.profile) {
+          await prisma.employeeProfile.update({
+            where: { id: creator.profile },
+            data: {
+              branch: { connect: { id: created.id } }
+            }
+          });
+        }
+      }
+
       return res.json({
         code: 200,
         response: {

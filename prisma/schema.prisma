@@ -143,6 +143,7 @@ model User {
   VehiclePurchaseChallan                        VehiclePurchaseChallan[]
   VehiclePurchaseInvoice                        VehiclePurchaseInvoice[]
   createdPurchaseReturns                        VehiclePurchaseReturn[]        @relation("PurchaseReturnWasCreatedByUser")
+  createdPurchaseSpareInvoices                  PurchaseSpareInvoice[]         @relation("PurchaseSpareInvoiceWasCreatedBy")
   WhatsappPromotion                             WhatsappPromotion[]
   WhatsappTemplate                              WhatsappTemplate[]
   idCreation                                    idCreation[]
@@ -320,6 +321,7 @@ model Branch {
   contacts                                                             BranchContacts[]               @relation("BranchHasManyBranchContacts")
   personInCharge                                                       User[]                         @relation("BranchHasManyUser")
   employeeProfiles                                                     EmployeeProfile[]              @relation("UserProfileHasBranch")
+  purchaseSpareInvoices                                                PurchaseSpareInvoice[]         @relation("PurchaseSpareInvoiceRelatedToBranch")
 }
 
 model BranchContacts {
@@ -854,7 +856,6 @@ model VehicleInventory {
   warrantyBookNo           String?
   batteryNo                String?
   manMonthYear             String?
-  updatedAt                DateTime                   @default(now()) @updatedAt
   Branch                   Branch?                    @relation(fields: [branch], references: [id], onUpdate: NoAction)
   Image                    Image?                     @relation(fields: [color], references: [id], onUpdate: NoAction)
   VehiclePurchaseInvoice   VehiclePurchaseInvoice?    @relation(fields: [vehiclePurchase], references: [id], onUpdate: NoAction)
@@ -1820,7 +1821,11 @@ model PurchaseSpareInvoice {
   updatedAt                DateTime                   @updatedAt
   supplierId               String?                    @map("supplier") @db.VarChar(25)
   psiNo                    String?
-  supplier                 Supplier?                  @relation("LinkedToSupplier", fields: [supplierId], references: [id], onUpdate: NoAction)
+  createdById              String?                    @map("createdBy") @db.VarChar(25)
+  branchId                 String?                    @map("branch") @db.VarChar(25)
+  supplier                 Supplier?                  @relation("LinkedToSupplier", fields: [supplierId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  createdBy                User?                      @relation("PurchaseSpareInvoiceWasCreatedBy", fields: [createdById], references: [id], onUpdate: NoAction)
+  branch                   Branch?                    @relation("PurchaseSpareInvoiceRelatedToBranch", fields: [branchId], references: [id], onUpdate: NoAction)
   transactions             Transactions[]             @relation("TransactionsHavePurchasedSpares")
   PurchaseSpareInvoiceItem PurchaseSpareInvoiceItem[] @relation("ItemRelatedToPurchaseSpareInvoice")
 }
@@ -1847,7 +1852,8 @@ model PurchaseSpareInvoiceItem {
   branch               Branch?                @relation("PurchaseSpareInvoiceHasBranch", fields: [branchId], references: [id], onUpdate: NoAction)
   hsn                  Hsn?                   @relation("PurchaseSpareInvoiceItemHasHSN", fields: [hsnId], references: [id], onUpdate: NoAction)
   partNumber           PartsMaster?           @relation("PartNoRelatedToPartsMaster", fields: [partNumberId], references: [id], onUpdate: NoAction)
-  PurchaseSpareInvoice PurchaseSpareInvoice[] @relation("ItemRelatedToPurchaseSpareInvoice")
+  PurchaseSpareInvoice   PurchaseSpareInvoice? @relation("ItemRelatedToPurchaseSpareInvoice", fields: [purchaseSpareInvoiceId], references: [id], onUpdate: NoAction)
+  purchaseSpareInvoiceId String?               @map("purchaseSpareInvoice") @db.VarChar(25)
 }
 
 model SaleSpareInvoice {

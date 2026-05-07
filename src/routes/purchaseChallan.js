@@ -14,5 +14,7 @@ router.post("/get", controller.getPage);
 // Missing parity routes
 router.post("/frameNumber", controller.frameNumber);
 router.post("/engineNumber", controller.engineNumber);
+router.post("/manufacturer", controller.getManufacturer);
+router.delete("/vehicle/:id", controller.deleteVehicle);
 
 export default router;
