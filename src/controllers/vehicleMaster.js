@@ -49,6 +49,21 @@ class VehicleMasterController {
       }));
       const formattedPrice = (v.price || []).map(p => ({
         ...p,
+        showroomPrice: p.showroomPrice ? Number(p.showroomPrice) : 0,
+        roadTax: p.roadTax ? Number(p.roadTax) : 0,
+        registrationFee: p.registrationFee ? Number(p.registrationFee) : 0,
+        handlingCharges: p.handlingCharges ? Number(p.handlingCharges) : 0,
+        warrantyPrice: p.warrantyPrice ? Number(p.warrantyPrice) : 0,
+        amc: p.amc ? Number(p.amc) : 0,
+        rsa: p.rsa ? Number(p.rsa) : 0,
+        insurance1plus5: p.insurance1plus5 ? Number(p.insurance1plus5) : 0,
+        insurance5plus5: p.insurance5plus5 ? Number(p.insurance5plus5) : 0,
+        insurance1plus5ZD: p.insurance1plus5ZD ? Number(p.insurance1plus5ZD) : 0,
+        insurance5plus5ZD: p.insurance5plus5ZD ? Number(p.insurance5plus5ZD) : 0,
+        rto: p.rto ? Number(p.rto) : 0,
+        otherCharges: p.otherCharges ? Number(p.otherCharges) : 0,
+        tcs: p.tcs ? Number(p.tcs) : 0,
+        discount: p.discount ? Number(p.discount) : 0,
         colors: (p.VehicleColor || []).map(c => {
           const colorObj = (v.image || []).find(img => img && img.id === c.colorId) || null;
           const formattedColorObj = colorObj ? {

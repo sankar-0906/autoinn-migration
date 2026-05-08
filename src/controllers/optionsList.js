@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
+import VehicleMasterController from "./vehicleMaster.js";
 
 /**
  * Controller for fetching generic lists for dropdowns.
@@ -92,9 +93,10 @@ class OptionsListController {
                 { modelCode: { contains: queryStr, mode: 'insensitive' } }
               ]
             },
-            include: { manufacturer: true, image: true, services: true },
+            include: { manufacturer: true, image: true, services: true, price: true },
             take: 100
           });
+          optionsList = optionsList.map(v => VehicleMasterController.formatVehicleMaster(v, req));
           break;
 
         case "partsMasters":

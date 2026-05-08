@@ -62,6 +62,8 @@ class PurchaseInvoiceController {
       Supplier: challan.supplier || null, 
       branch: challan.branch || null,
       Branch: challan.branch || null, 
+      supplierName: challan.supplier?.name || "",
+      branchName: challan.branch?.name || "",
       vehicleDetail: (challan.PurchaseChallanHasVehicleDetails || []).map(junction => {
         const detail = junction.PurchasedVehicleDetail;
         return detail ? {
@@ -82,8 +84,17 @@ class PurchaseInvoiceController {
 
     const transformed = {
       ...invoice,
+      amount: invoice.amount ? parseFloat(invoice.amount.toString()) : 0,
+      grossTotal: invoice.grossTotal ? parseFloat(invoice.grossTotal.toString()) : 0,
+      netAmount: invoice.netAmount ? parseFloat(invoice.netAmount.toString()) : 0,
+      roundOff: invoice.roundOff ? parseFloat(invoice.roundOff.toString()) : 0,
+      others: invoice.others ? parseFloat(invoice.others.toString()) : 0,
       purchaseChallan: transformedChallan,
       VehiclePurchaseChallan: transformedChallan, // Capitalized alias for legacy parity
+      supplier: transformedChallan?.supplier || null,
+      Supplier: transformedChallan?.supplier || null,
+      branch: transformedChallan?.branch || null,
+      Branch: transformedChallan?.branch || null,
       user: invoice.User,
       User: invoice.User // Capitalized alias for legacy parity
     };
@@ -160,9 +171,9 @@ class PurchaseInvoiceController {
             supplierChallanNo: supplierInvoiceNo,
             createdAt: new Date(),
             updatedAt: new Date(),
-            supplier: supplier,
-            branch: branch,
-            createdBy: user,
+            supplier: supplier ? { connect: { id: supplier } } : undefined,
+            branch: branch ? { connect: { id: branch } } : undefined,
+            User: user ? { connect: { id: user } } : undefined,
           }
         });
         console.log("Challan created:", challan.id);
@@ -209,8 +220,8 @@ class PurchaseInvoiceController {
             others: parseFloat(others) || 0,
             createdAt: new Date(),
             updatedAt: new Date(),
-            purchaseChallan: challan.id,
-            createdBy: user
+            purchaseChallan: challan ? { connect: { id: challan.id } } : undefined,
+            User: user ? { connect: { id: user } } : undefined
           }
         });
         console.log("Invoice created:", invoice.id);
@@ -227,10 +238,10 @@ class PurchaseInvoiceController {
               manMonthYear: detail.manMonthYear,
               Status: "Avaliable",
               createdAt: new Date(),
-              VehicleMaster: { connect: { id: detail.vehicleId } },
-              Branch: { connect: { id: branch } },
-              Image: { connect: { id: detail.colorId } },
-              VehiclePurchaseInvoice: { connect: { id: invoice.id } }
+              vehicle: { connect: { id: detail.vehicleId } },
+              branch: { connect: { id: branch } },
+              color: { connect: { id: detail.colorId } },
+              vehiclePurchase: { connect: { id: invoice.id } }
             }
           });
         }
@@ -307,12 +318,12 @@ class PurchaseInvoiceController {
       const result = await prisma.$transaction(async (tx) => {
         // Update Challan
         await tx.vehiclePurchaseChallan.update({
-          where: { id: prevChallanId },
+          where: { id: prevChallanId.id },
           data: {
             date: challanData?.date ? new Date(challanData.date) : new Date(),
             supplierChallanNo: supplierInvoiceNo,
-            supplier: supplier,
-            branch: branch
+            supplier: supplier ? { connect: { id: supplier } } : undefined,
+            branch: branch ? { connect: { id: branch } } : undefined
           }
         });
 
@@ -335,8 +346,8 @@ class PurchaseInvoiceController {
         for (const chassisNo in prevMap) {
           if (!newMap[chassisNo]) {
             const detailToRemove = prevMap[chassisNo];
-            await tx.vehicleInventory.deleteMany({ where: { chassisNo, vehiclePurchase: id } });
-            await tx.purchaseChallanHasVehicleDetails.deleteMany({ where: { A: prevChallanId, B: detailToRemove.id } });
+            await tx.vehicleInventory.deleteMany({ where: { chassisNo, vehiclePurchaseId: id } });
+            await tx.purchaseChallanHasVehicleDetails.deleteMany({ where: { A: prevChallanId.id, B: detailToRemove.id } });
             await tx.purchasedVehicleDetail.delete({ where: { id: detailToRemove.id } });
           }
         }
@@ -362,7 +373,7 @@ class PurchaseInvoiceController {
             });
             // Link detail to challan
             await tx.purchaseChallanHasVehicleDetails.create({
-              data: { A: prevChallanId, B: detail.id }
+              data: { A: prevChallanId.id, B: detail.id }
             });
 
             // Create inventory
@@ -376,10 +387,10 @@ class PurchaseInvoiceController {
                 manMonthYear: item.manMonthYear,
                 Status: "Avaliable",
                 createdAt: new Date(),
-                VehicleMaster: { connect: { id: item.vehicleId } },
-                Branch: { connect: { id: branch } },
-                Image: { connect: { id: item.colorId } },
-                VehiclePurchaseInvoice: { connect: { id: id } }
+                vehicle: { connect: { id: item.vehicleId } },
+                branch: { connect: { id: branch } },
+                color: { connect: { id: item.colorId } },
+                vehiclePurchase: { connect: { id: id } }
               }
             });
           } else {
@@ -397,7 +408,7 @@ class PurchaseInvoiceController {
             });
 
             await tx.vehicleInventory.updateMany({
-              where: { chassisNo, vehiclePurchase: id },
+              where: { chassisNo, vehiclePurchaseId: id },
               data: {
                 engineNo: item.engineNo,
                 chassisNo: item.chassisNo,
@@ -465,16 +476,16 @@ class PurchaseInvoiceController {
       const detailIds = invoice.purchaseChallan?.PurchaseChallanHasVehicleDetails.map(j => j.B) || [];
 
       const transactions = [
-        prisma.vehicleInventory.deleteMany({ where: { vehiclePurchase: id } }),
+        prisma.vehicleInventory.deleteMany({ where: { vehiclePurchaseId: id } }),
         prisma.vehiclePurchaseInvoice.delete({ where: { id } })
       ];
 
       if (challanId) {
-        transactions.push(prisma.purchaseChallanHasVehicleDetails.deleteMany({ where: { A: challanId } }));
+        transactions.push(prisma.purchaseChallanHasVehicleDetails.deleteMany({ where: { A: challanId.id } }));
         if (detailIds.length > 0) {
           transactions.push(prisma.purchasedVehicleDetail.deleteMany({ where: { id: { in: detailIds } } }));
         }
-        transactions.push(prisma.vehiclePurchaseChallan.delete({ where: { id: challanId } }));
+        transactions.push(prisma.vehiclePurchaseChallan.delete({ where: { id: challanId.id } }));
       }
 
       await prisma.$transaction(transactions);
@@ -503,6 +514,9 @@ class PurchaseInvoiceController {
       const inputValue = searchString || "";
 
       const where = {
+        purchaseChallan: {
+          branchId: { in: branchIds }
+        },
         OR: [
           { invoiceNo: { contains: inputValue, mode: 'insensitive' } },
           { purchaseChallan: { supplierChallanNo: { contains: inputValue, mode: 'insensitive' } } },
@@ -564,7 +578,7 @@ class PurchaseInvoiceController {
         where: {
           purchaseChallan: {
             supplierChallanNo: invoiceNo,
-            supplier: supplierId
+            supplier: { id: supplierId }
           }
         }
       });

@@ -49,37 +49,27 @@ class VehicleInventoryController {
       ...inv,
       // Restore relations as objects (don't overwrite with IDs)
       branch: inv.branch || null,
-      color: inv.color || null,
-      vehiclePurchase: inv.vehiclePurchase || null,
-      
-      // Scalar IDs (legacy aliases)
-      branchId: inv.branchId || null,
-      colorId: inv.colorId || null,
-      vehiclePurchaseId: inv.vehiclePurchaseId || null,
-      
-      // PascalCase Relations for frontend parity
-      VehicleMaster: formattedVehicle,
       Branch: inv.branch || null,
-      Image: inv.color || null, 
+      color: inv.color || null,
+      Image: inv.color || null,
       Color: inv.color || null,
+      vehiclePurchase: inv.vehiclePurchase || null,
       VehiclePurchaseInvoice: inv.vehiclePurchase || null,
-      
-      // Lowercase Relations
-      vehicle: formattedVehicle,
       
       // Flattened fields for Table Columns & Cost Calculations
       location: inv.branch?.name || "",
       branchName: inv.branch?.name || "",
+      supplierName: inv.vehiclePurchase?.purchaseChallan?.supplier?.name || "",
       modelName: formattedVehicle?.modelName,
       modelCode: formattedVehicle?.modelCode,
       category: formattedVehicle?.category,
       
       // Multiple cost aliases to prevent NaN in frontend reducers
-      purchasePrice: inv.vehiclePurchase?.netAmount || 0,
-      rate: inv.vehiclePurchase?.amount || 0,
-      netAmount: inv.vehiclePurchase?.netAmount || 0,
-      amount: inv.vehiclePurchase?.amount || 0,
-      totalCost: inv.vehiclePurchase?.netAmount || 0,
+      purchasePrice: inv.vehiclePurchase?.netAmount ? parseFloat(inv.vehiclePurchase.netAmount.toString()) : 0,
+      rate: inv.vehiclePurchase?.amount ? parseFloat(inv.vehiclePurchase.amount.toString()) : 0,
+      netAmount: inv.vehiclePurchase?.netAmount ? parseFloat(inv.vehiclePurchase.netAmount.toString()) : 0,
+      amount: inv.vehiclePurchase?.amount ? parseFloat(inv.vehiclePurchase.amount.toString()) : 0,
+      totalCost: inv.vehiclePurchase?.netAmount ? parseFloat(inv.vehiclePurchase.netAmount.toString()) : 0,
       
       quantity: 1,
       colorName: inv.color?.color || "",

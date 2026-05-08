@@ -26,7 +26,7 @@ class BookingController {
     vehicle: {
       include: {
         manufacturer: true,
-        prices: true
+        price: true
       }
     },
     color: true,
@@ -70,7 +70,7 @@ class BookingController {
       formatted.vehicle = {
         ...formatted.vehicle,
         manufacturer: formatted.vehicle.manufacturer,
-        price: formatted.vehicle.prices
+        price: formatted.vehicle.price
       };
     }
 

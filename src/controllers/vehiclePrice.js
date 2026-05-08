@@ -19,7 +19,8 @@ class VehiclePriceController {
     vehicleModel: {
       include: {
         manufacturer: true,
-        images: true
+        image: true,
+        file: true
       }
     },
     VehicleColor: true
@@ -51,9 +52,13 @@ class VehiclePriceController {
       vehicleModel: p.vehicleModel ? {
         ...p.vehicleModel,
         manufacturer: p.vehicleModel.manufacturer || null,
-        image: (p.vehicleModel.images || []).map(img => ({
+        image: (p.vehicleModel.image || []).map(img => ({
           ...img,
           url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
+        })),
+        file: (p.vehicleModel.file || []).map(f => ({
+          ...f,
+          url: f.url ? (f.url.startsWith("http") ? f.url : `${baseUrl}${f.url}`) : ""
         }))
       } : null,
       colors: p.VehicleColor || []
@@ -361,7 +366,7 @@ class VehiclePriceController {
       const vehicle = await prisma.vehicleMaster.findUnique({
         where: { id },
         include: {
-          images: true
+          image: true
         }
       });
 
@@ -375,14 +380,14 @@ class VehiclePriceController {
 
       const transformedData = {
         ...vehicle,
-        colors: (vehicle.images || []).map(img => ({
+        colors: (vehicle.image || []).map(img => ({
           id: img.id,
           color: img.color,
           code: img.code,
           url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
         }))
       };
-      delete transformedData.images;
+      delete transformedData.image;
 
       return res.json({
         code: 200,

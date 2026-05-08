@@ -38,8 +38,8 @@ class CustomerController {
             vehicleDetail: {
               include: {
                 manufacturer: true,
-                images: true,
-                prices: true
+                image: true,
+                price: true
               }
             }
           }
@@ -52,7 +52,7 @@ class CustomerController {
         vehicle: {
           include: {
             manufacturer: true,
-            prices: true
+            price: true
           }
         },
         color: true
@@ -82,8 +82,8 @@ class CustomerController {
                 vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
                     ...q.QuotationVehicle[0].vehicleDetail,
                     manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
-                    image: q.QuotationVehicle[0].vehicleDetail.images,
-                    price: q.QuotationVehicle[0].vehicleDetail.prices
+                    image: q.QuotationVehicle[0].vehicleDetail.image,
+                    price: q.QuotationVehicle[0].vehicleDetail.price
                 } : null
             } : null
         }));
@@ -95,7 +95,7 @@ class CustomerController {
             vehicle: b.vehicle ? {
                 ...b.vehicle,
                 manufacturer: b.vehicle.manufacturer,
-                price: b.vehicle.prices
+                price: b.vehicle.price
             } : null
         }));
     }
@@ -503,8 +503,8 @@ class CustomerController {
               vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
                   ...q.QuotationVehicle[0].vehicleDetail,
                   manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
-                  image: q.QuotationVehicle[0].vehicleDetail.images,
-                  price: q.QuotationVehicle[0].vehicleDetail.prices
+                  image: q.QuotationVehicle[0].vehicleDetail.image,
+                  price: q.QuotationVehicle[0].vehicleDetail.price
               } : null
           } : null
         }));
