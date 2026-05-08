@@ -33,9 +33,9 @@ class QuotationController {
       include: {
         vehicleDetail: {
           include: {
-            Manufacturer: true,
-            images: true,
-            prices: true
+            manufacturer: true,
+            image: true,
+            price: true
           }
         },
         InsuranceType: true,
@@ -76,9 +76,9 @@ class QuotationController {
         ...qv,
         vehicleDetail: qv.vehicleDetail ? {
           ...qv.vehicleDetail,
-          manufacturer: qv.vehicleDetail.Manufacturer,
-          image: qv.vehicleDetail.images,
-          price: qv.vehicleDetail.prices
+          manufacturer: qv.vehicleDetail.manufacturer,
+          image: qv.vehicleDetail.image,
+          price: qv.vehicleDetail.price
         } : null,
         insuranceType: qv.InsuranceType,
         optionalType: qv.OptionalType

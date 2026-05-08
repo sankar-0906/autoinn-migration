@@ -51,6 +51,10 @@ import idGenerateRoutes from "./idGenerate.js";
 import idCreationRoutes from "./idCreation.js";
 import activityRoutes from "./activity.js";
 import uploadRoutes from "./upload.js";
+import frameNumberRoutes from "./frameNumber.js";
+import insuranceRoutes from "./insurance.js";
+import pmcRoutes from "./pmc.js";
+import pinelabsRoutes from "./pineLabs.js";
 
 const router = Router();
 
@@ -99,6 +103,7 @@ router.use("/purchaseReturn", purchaseReturnRoutes);
 router.use("/accessories", accessoriesRoutes);
 router.use("/department", departmentRoutes);
 router.use("/subDealer", subDealerRoutes);
+router.use("/SubDealer", subDealerRoutes);
 router.use("/sms", smsRoutes);
 router.use("/sendSms", sendSmsRoutes);
 router.use("/promotions", promotionsRoutes);
@@ -106,5 +111,11 @@ router.use("/idGenerate", idGenerateRoutes);
 router.use("/idCreation", idCreationRoutes);
 router.use("/activity", activityRoutes);
 router.use("/upload", uploadRoutes);
+router.use("/fileUpload/generate", uploadRoutes);
+router.use("/frameNumber", frameNumberRoutes);
+router.use("/insurance", insuranceRoutes);
+router.use("/Insurance", insuranceRoutes);
+router.use("/pmc", pmcRoutes);
+router.use("/pinelabs", pinelabsRoutes);
 
 export default router;

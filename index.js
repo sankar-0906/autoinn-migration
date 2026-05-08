@@ -9,6 +9,7 @@ import logger from "./src/config/logger.config.js";
 import prisma from "./src/config/prisma.config.js";
 import apiRoutes from "./src/routes/index.js";
 import { setupTeleCMISocket } from "./src/config/webSocket.js";
+import pinoHttp from "pino-http";
 
 const app = express();
 const httpServer = createServer(app);
@@ -23,11 +24,23 @@ app.use(express.json({ limit: "100mb" }));
 app.use(express.urlencoded({ extended: true, limit: "100mb" }));
 app.use("/uploads", express.static("uploads"));
 
+// --- REQUEST LOGGING ---
+app.use(pinoHttp({ 
+  logger,
+  autoLogging: false,
+  serializers: {
+    req: (req) => ({
+      method: req.method,
+      url: req.url,
+    }),
+  }
+}));
+
 // --- API ROUTES ---
 app.use("/api", apiRoutes);
 
 // --- HEALTH CHECK ---
-app.get("/health", async (req, res) => {
+app.get("/api/health", async (req, res) => {
   try {
     await prisma.$queryRaw`SELECT 1`;
     res.json({

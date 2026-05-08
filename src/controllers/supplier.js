@@ -15,6 +15,27 @@ class SupplierController {
     bank: true
   };
 
+  formatSupplier(s) {
+    if (!s) return null;
+    return {
+      ...s,
+      address: s.address ? {
+        ...s.address,
+        district: s.address.district || { id: null, name: "" },
+        state: s.address.state || { id: null, name: "" },
+        country: s.address.country || { id: null, name: "" },
+      } : null,
+      shippingAddress: s.shippingAddress ? {
+        ...s.shippingAddress,
+        district: s.shippingAddress.district || { id: null, name: "" },
+        state: s.shippingAddress.state || { id: null, name: "" },
+        country: s.shippingAddress.country || { id: null, name: "" },
+      } : null,
+      contact: s.contact || [],
+      bank: s.bank || []
+    };
+  }
+
   createSupplier = async (req) => {
     try {
       const {
@@ -96,7 +117,7 @@ class SupplierController {
         code: 200,
         response: {
           code: 200,
-          data: created
+          data: this.formatSupplier(created)
         }
       };
     } catch (err) {
@@ -115,7 +136,7 @@ class SupplierController {
         code: 200,
         response: {
           code: 200,
-          data: suppliers
+          data: suppliers.map(s => this.formatSupplier(s))
         }
       };
     } catch (err) {
@@ -136,7 +157,7 @@ class SupplierController {
           code: 200,
           response: {
             code: 200,
-            data: supplier
+            data: this.formatSupplier(supplier)
           }
         };
       }
@@ -178,7 +199,7 @@ class SupplierController {
         code: 200,
         response: {
           code: 200,
-          data: { count, supplier: suppliers }
+          data: { count, supplier: suppliers.map(s => this.formatSupplier(s)) }
         }
       };
     } catch (err) {
@@ -315,7 +336,7 @@ class SupplierController {
         code: 200,
         response: {
           code: 200,
-          data: updated
+          data: this.formatSupplier(updated)
         }
       };
     } catch (err) {

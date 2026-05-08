@@ -62,8 +62,8 @@ class PurchaseChallanController {
           vehicleDetail: vehicleDetail && vehicleDetail.length > 0 ? {
             create: vehicleDetail.map(v => ({
               vehicle: { connect: { id: v.vehicle } },
-              chassisNo: v.chassisNo,
-              engineNo: v.engineNo,
+              chassisNo: v.chassisNo?.toUpperCase(),
+              engineNo: v.engineNo?.toUpperCase(),
               keyNo: v.keyNo,
               warrantyBookNo: v.warrantyBookNo,
               batteryNo: v.batteryNo,
@@ -166,7 +166,8 @@ class PurchaseChallanController {
    */
   frameNumber = async (req, res) => {
     try {
-      const { chassisNo, manufacturer, id, checkType } = req.body;
+      const chassisNo = req.body.chassisNo?.toUpperCase();
+      const { manufacturer, id, checkType } = req.body;
 
       // Check for duplicate chassis number in existing sold vehicles
       const existing = await prisma.vehicle.findFirst({
@@ -242,7 +243,11 @@ class PurchaseChallanController {
             code: 200,
             msg: "Date converted",
             data: formattedDate,
-            otherValues
+            otherValues: otherValues && typeof otherValues === 'object' ? {
+              ...otherValues,
+              chassisNo: otherValues.chassisNo?.toUpperCase(),
+              engineNo: otherValues.engineNo?.toUpperCase()
+            } : otherValues
           }
         });
       }
@@ -265,7 +270,8 @@ class PurchaseChallanController {
    */
   engineNumber = async (req, res) => {
     try {
-      const { engineNo, manufacturer, id } = req.body;
+      const engineNo = req.body.engineNo?.toUpperCase();
+      const { manufacturer, id } = req.body;
 
       const existing = await prisma.vehicle.findFirst({
         where: { engineNo, id: id ? { not: id } : undefined }
@@ -303,12 +309,81 @@ class PurchaseChallanController {
         response: {
           code: 200,
           msg: "Engine number check complete",
-          otherValues
+          otherValues: otherValues && typeof otherValues === 'object' ? {
+            ...otherValues,
+            chassisNo: otherValues.chassisNo?.toUpperCase(),
+            engineNo: otherValues.engineNo?.toUpperCase()
+          } : otherValues
         }
       });
     } catch (err) {
       logger.error("Engine number check error:", err);
       return res.json({ code: 500, msg: "error getting engineNumber" });
+    }
+  };
+
+  /**
+   * getManufacturer endpoint - Fetch branch and its manufacturers
+   */
+  getManufacturer = async (req, res) => {
+    try {
+      let { branch } = req.body;
+      // Default to Devanahalli if no branch provided
+      if (!branch) {
+        branch = "ck8g589vj499008806oh90nmx"; // Devanahalli
+      }
+      
+      const response = await prisma.branch.findUnique({
+        where: { id: branch },
+        include: {
+          manufacturer: true,
+          address: { include: { district: true, state: true, country: true } },
+          contacts: true
+        }
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Branch fetched",
+          data: response
+        }
+      });
+    } catch (error) {
+      logger.error("Get manufacturer error:", error);
+      return res.json({ code: 500, message: "An error occurred" });
+    }
+  };
+
+  /**
+   * deleteVehicle endpoint - Delete a purchased vehicle detail record
+   */
+  deleteVehicle = async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      // Delete from junction table first if exists (Prisma 7 handling)
+      await prisma.purchaseChallanHasVehicleDetails.deleteMany({
+        where: { B: id }
+      });
+
+      // Delete the detail record
+      await prisma.purchasedVehicleDetail.delete({
+        where: { id }
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "VehicleDetail deleted permanently.",
+          data: null
+        }
+      });
+    } catch (err) {
+      logger.error("Delete vehicle detail error:", err);
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
     }
   };
 }

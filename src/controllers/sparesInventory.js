@@ -152,8 +152,7 @@ class SparesInventoryController {
             data: {
               phyQuantity: item.phyQuantity ? Math.max(0, parseInt(item.phyQuantity)) : 0,
               accQuantity: item.accQuantity ? Math.max(0, parseInt(item.accQuantity)) : 0,
-              binNum: item.binNum || "",
-              updatedAt: new Date()
+              binNum: item.binNum || ""
             },
             include: this.inventoryInclude
           });
@@ -162,7 +161,6 @@ class SparesInventoryController {
           const created = await prisma.sparesInventory.create({
             data: {
               createdAt: new Date(),
-              updatedAt: new Date(),
               phyQuantity: item.phyQuantity ? Math.max(0, parseInt(item.phyQuantity)) : 0,
               accQuantity: item.accQuantity ? Math.max(0, parseInt(item.accQuantity)) : 0,
               binNum: item.binNum || "",
@@ -203,8 +201,7 @@ class SparesInventoryController {
           reorderLevel: parseInt(reorderLevel) || 0,
           reorderQuantity: parseInt(reorderQuantity) || 0,
           phyQuantity: parseInt(phyQuantity) || 0,
-          accQuantity: parseInt(accQuantity) || 0,
-          updatedAt: new Date()
+          accQuantity: parseInt(accQuantity) || 0
         },
         include: this.inventoryInclude
       });
@@ -341,8 +338,13 @@ class SparesInventoryController {
         response: {
           code: 200,
           message: "SparesInventory History fetched",
-          data: transactions.map(t => this.formatTransaction(t))
-        }
+          data: transactions.map(t => this.formatTransaction(t)),
+          // Legacy parity: Provide data at root level of response if needed
+          Transcations: transactions.map(t => this.formatTransaction(t))
+        },
+        // Root level for direct legacy compatibility
+        message: "SparesInventory History fetched",
+        data: transactions.map(t => this.formatTransaction(t))
       });
     } catch (err) {
       logger.error("Get spares history error:", err);
@@ -501,23 +503,37 @@ class SparesInventoryController {
       const inputValue = partNo || "";
 
       const where = {
-        partId: inputValue,
-        branchId: branch,
         phyQuantity: skipNull ? { gt: 0 } : undefined
       };
+
+      if (partNo) {
+        where.partId = partNo;
+      }
+
+      if (branch) {
+        where.branchId = { in: Array.isArray(branch) ? branch : [branch] };
+      }
 
       const inventories = await prisma.sparesInventory.findMany({
         where,
         include: this.inventoryInclude
       });
 
+      const formattedInventories = inventories.map(i => this.formatInventory(i));
+
       return res.json({
         code: 200,
         response: {
           code: 200,
           msg: "sparesInventories fetched",
-          data: { sparesInventory: inventories.map(i => this.formatInventory(i)) }
-        }
+          data: { 
+            sparesInventory: formattedInventories,
+            SparesInventory: formattedInventories
+          }
+        },
+        // Legacy parity
+        data: formattedInventories,
+        sparesInventory: formattedInventories
       });
     } catch (err) {
       logger.error("Get part error:", err);

@@ -18,7 +18,7 @@ class PurchaseSpareInvoiceController {
         bank: true
       }
     },
-    purchaseItemInvoice: {
+    PurchaseSpareInvoiceItem: {
       include: {
         partNumber: {
           include: {
@@ -32,22 +32,35 @@ class PurchaseSpareInvoiceController {
     }
   };
 
+  transformInvoice = (invoice) => {
+    if (!invoice) return invoice;
+    const transformed = { ...invoice };
+    if (transformed.PurchaseSpareInvoiceItem) {
+      transformed.purchaseItemInvoice = transformed.PurchaseSpareInvoiceItem;
+      delete transformed.PurchaseSpareInvoiceItem;
+    }
+    return transformed;
+  };
+
   createPurchaseSpareInvoice = async (req, res) => {
     try {
       const {
-        invoiceNumber, invoiceDate, supplier, itemRate,
+        invoiceNumber, invoiceDate, supplier, supplierName, itemRate, itemrate,
         discountType, discountPercent, discountRate, tcs,
         cgst, sgst, igst, totalDiscount, adjustment, totalInvoice,
-        purchaseItemInvoice
+        purchaseItemInvoice, psiNo, branch
       } = req.body;
+      const finalSupplier = supplier || supplierName;
+      const finalItemRate = itemRate || itemrate;
       const user = req.user?.id || req.headers["user-id"];
 
       const created = await prisma.purchaseSpareInvoice.create({
         data: {
           invoiceNumber,
+          psiNo,
           invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
           currentDate: new Date(),
-          itemRate: parseFloat(itemRate) || 0,
+          itemRate: finalItemRate,
           discountType,
           discountPercent: parseFloat(discountPercent) || 0,
           discountRate: parseFloat(discountRate) || 0,
@@ -60,13 +73,13 @@ class PurchaseSpareInvoiceController {
           totalInvoice: parseFloat(totalInvoice) || 0,
           createdAt: new Date(),
           updatedAt: new Date(),
-          supplier: supplier ? { connect: { id: supplier } } : undefined,
+          supplier: finalSupplier ? { connect: { id: finalSupplier } } : undefined,
           createdBy: user ? { connect: { id: user } } : undefined,
-          purchaseItemInvoice: purchaseItemInvoice && purchaseItemInvoice.length > 0 ? {
+          PurchaseSpareInvoiceItem: purchaseItemInvoice && purchaseItemInvoice.length > 0 ? {
             create: purchaseItemInvoice.map(item => ({
-              partNumber: { connect: { id: item.partNumber } },
-              hsn: item.hsn ? { connect: { id: item.hsn } } : undefined,
-              branch: item.branch ? { connect: { id: item.branch } } : undefined,
+              partNumber: { connect: { id: item.partNumber?.id || item.partNumber } },
+              hsn: (item.hsn?.id || item.hsn) ? { connect: { id: item.hsn?.id || item.hsn } } : undefined,
+              branch: (item.branch?.id || item.branch || branch) ? { connect: { id: item.branch?.id || item.branch || branch } } : undefined,
               partName: item.partName,
               quantity: parseFloat(item.quantity) || 0,
               unitRate: parseFloat(item.unitRate) || 0,
@@ -92,11 +105,115 @@ class PurchaseSpareInvoiceController {
 
       return res.json({
         code: 200,
-        response: created
+        response: {
+          code: 200,
+          message: "Purchase Spare Invoice created successfully",
+          data: this.transformInvoice(created)
+        }
       });
     } catch (err) {
       logger.error("Create purchase spare invoice error:", err);
-      return res.json({ code: 500, msg: "An error occured", err });
+      return res.json({ code: 500, msg: "an error occurred", error: err.message });
+    }
+  };
+
+  updatePurchaseSpareInvoice = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        invoiceNumber, invoiceDate, supplier, supplierName, itemRate, itemrate,
+        discountType, discountPercent, discountRate, tcs,
+        cgst, sgst, igst, totalDiscount, adjustment, totalInvoice,
+        purchaseItemInvoice, psiNo, branch
+      } = req.body;
+      const finalSupplier = supplier || supplierName;
+      const finalItemRate = itemRate || itemrate;
+
+      // 1. Delete existing items
+      await prisma.purchaseSpareInvoiceItem.deleteMany({
+        where: { purchaseSpareInvoiceId: id }
+      });
+
+      // 2. Update the main invoice and recreate items
+      const updated = await prisma.purchaseSpareInvoice.update({
+        where: { id },
+        data: {
+          invoiceNumber,
+          psiNo,
+          invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
+          itemRate: finalItemRate,
+          discountType,
+          discountPercent: parseFloat(discountPercent) || 0,
+          discountRate: parseFloat(discountRate) || 0,
+          tcs: parseFloat(tcs) || 0,
+          cgst: parseFloat(cgst) || 0,
+          sgst: parseFloat(sgst) || 0,
+          igst: parseFloat(igst) || 0,
+          totalDiscount: parseFloat(totalDiscount) || 0,
+          adjustment: parseFloat(adjustment) || 0,
+          totalInvoice: parseFloat(totalInvoice) || 0,
+          supplierId: finalSupplier,
+          PurchaseSpareInvoiceItem: purchaseItemInvoice ? {
+            create: purchaseItemInvoice.map(item => ({
+              partName: item.partName,
+              quantity: parseFloat(item.quantity) || 0,
+              unitRate: parseFloat(item.unitRate) || 0,
+              igst: parseFloat(item.igst) || 0,
+              cgst: parseFloat(item.cgst) || 0,
+              sgst: parseFloat(item.sgst) || 0,
+              gstRate: parseFloat(item.gstRate) || 0,
+              igstAmount: parseFloat(item.igstAmount) || 0,
+              cgstAmount: parseFloat(item.cgstAmount) || 0,
+              sgstAmount: parseFloat(item.sgstAmount) || 0,
+              discountAmount: parseFloat(item.discountAmount) || 0,
+              discountPercent: parseFloat(item.discountPercent) || 0,
+              partNumberId: item.partNumber?.id || item.partNumber,
+              hsnId: item.hsn?.id || item.hsn,
+              branchId: item.branch?.id || item.branch || branch,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }))
+          } : undefined
+        },
+        include: this.invoiceInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Purchase Spare Invoice updated successfully",
+          data: this.transformInvoice(updated)
+        }
+      });
+    } catch (err) {
+      logger.error("Update purchase spare invoice error:", err);
+      return res.json({ code: 500, msg: "an error occurred", error: err.message });
+    }
+  };
+
+  deletePurchaseSpareInvoice = async (req, res) => {
+    try {
+      const { id } = req.params;
+      
+      await prisma.purchaseSpareInvoiceItem.deleteMany({
+        where: { purchaseSpareInvoiceId: id }
+      });
+
+      await prisma.purchaseSpareInvoice.delete({
+        where: { id }
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Purchase Spare Invoice deleted successfully"
+        }
+      });
+    } catch (err) {
+      logger.error("Delete purchase spare invoice error:", err);
+      return res.json({ code: 500, msg: "an error occurred", error: err.message });
     }
   };
 
@@ -111,7 +228,10 @@ class PurchaseSpareInvoiceController {
       if (invoice) {
         return res.json({
           code: 200,
-          response: invoice
+          response: {
+            code: 200,
+            data: this.transformInvoice(invoice)
+          }
         });
       }
       return res.status(404).json({ code: 404, message: "Not found" });
@@ -147,7 +267,13 @@ class PurchaseSpareInvoiceController {
 
       return res.json({
         code: 200,
-        response: { count, purchaseSpareInvoice: invoices }
+        response: { 
+          code: 200,
+          data: {
+            count, 
+            purchaseSpareInvoice: invoices.map(inv => this.transformInvoice(inv)) 
+          }
+        }
       });
     } catch (err) {
       logger.error("Get purchase spare invoice page error:", err);

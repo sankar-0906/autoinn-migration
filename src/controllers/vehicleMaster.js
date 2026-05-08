@@ -16,16 +16,16 @@ const __dirname = path.dirname(__filename);
 class VehicleMasterController {
   // Shared include object to mirror the legacy fragment
   vehicleMasterInclude = {
-    Manufacturer: true,
-    files: true,
-    images: true,
+    manufacturer: true,
+    file: true,
+    image: true,
     services: {
       orderBy: {
         serviceNo: 'asc'
       }
     },
-    Hsn: true,
-    prices: {
+    hsn: true,
+    price: {
       include: {
         VehicleColor: true
       }
@@ -39,33 +39,57 @@ class VehicleMasterController {
     const baseUrl = `${protocol}://${host}`;
 
     try {
+      const formattedFile = (v.file || []).map(f => ({
+        ...f,
+        url: f.url ? (f.url.startsWith("http") ? f.url : `${baseUrl}${f.url}`) : ""
+      }));
+      const formattedImage = (v.image || []).map(img => ({
+        ...img,
+        url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
+      }));
+      const formattedPrice = (v.price || []).map(p => ({
+        ...p,
+        showroomPrice: p.showroomPrice ? Number(p.showroomPrice) : 0,
+        roadTax: p.roadTax ? Number(p.roadTax) : 0,
+        registrationFee: p.registrationFee ? Number(p.registrationFee) : 0,
+        handlingCharges: p.handlingCharges ? Number(p.handlingCharges) : 0,
+        warrantyPrice: p.warrantyPrice ? Number(p.warrantyPrice) : 0,
+        amc: p.amc ? Number(p.amc) : 0,
+        rsa: p.rsa ? Number(p.rsa) : 0,
+        insurance1plus5: p.insurance1plus5 ? Number(p.insurance1plus5) : 0,
+        insurance5plus5: p.insurance5plus5 ? Number(p.insurance5plus5) : 0,
+        insurance1plus5ZD: p.insurance1plus5ZD ? Number(p.insurance1plus5ZD) : 0,
+        insurance5plus5ZD: p.insurance5plus5ZD ? Number(p.insurance5plus5ZD) : 0,
+        rto: p.rto ? Number(p.rto) : 0,
+        otherCharges: p.otherCharges ? Number(p.otherCharges) : 0,
+        tcs: p.tcs ? Number(p.tcs) : 0,
+        discount: p.discount ? Number(p.discount) : 0,
+        colors: (p.VehicleColor || []).map(c => {
+          const colorObj = (v.image || []).find(img => img && img.id === c.colorId) || null;
+          const formattedColorObj = colorObj ? {
+            ...colorObj,
+            url: colorObj.url ? (colorObj.url.startsWith("http") ? colorObj.url : `${baseUrl}${colorObj.url}`) : ""
+          } : null;
+          return {
+            ...c,
+            color: formattedColorObj,
+            imageDetails: formattedColorObj ? [formattedColorObj] : []
+          };
+        })
+      }));
+
       const formatted = {
         ...v,
-        manufacturer: v.Manufacturer || null,
-        file: (v.files || []).map(f => ({
-          ...f,
-          url: f.url ? (f.url.startsWith("http") ? f.url : `${baseUrl}${f.url}`) : ""
-        })),
-        image: (v.images || []).map(img => ({
-          ...img,
-          url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
-        })),
-        hsn: v.Hsn || null,
-        price: (v.prices || []).map(p => ({
-          ...p,
-          colors: (p.VehicleColor || []).map(c => {
-            const colorObj = (v.images || []).find(img => img && img.id === c.colorId) || null;
-            const formattedColorObj = colorObj ? {
-              ...colorObj,
-              url: colorObj.url ? (colorObj.url.startsWith("http") ? colorObj.url : `${baseUrl}${colorObj.url}`) : ""
-            } : null;
-            return {
-              ...c,
-              color: formattedColorObj,
-              imageDetails: formattedColorObj ? [formattedColorObj] : []
-            };
-          })
-        }))
+        manufacturer: v.manufacturer || null,
+        Manufacturer: v.manufacturer || null,
+        file: formattedFile,
+        files: formattedFile,
+        image: formattedImage,
+        images: formattedImage,
+        hsn: v.hsn || null,
+        Hsn: v.hsn || null,
+        price: formattedPrice,
+        prices: formattedPrice
       };
       return formatted;
     } catch (error) {
@@ -148,7 +172,7 @@ class VehicleMasterController {
         noOfServices: noOfServices ? parseInt(noOfServices) : 0,
         createdAt: new Date(),
         updatedAt: new Date(),
-        files: file.length > 0 ? {
+        file: file.length > 0 ? {
           create: file.map(f => ({
             name: f.name,
             url: f.url,
@@ -157,7 +181,7 @@ class VehicleMasterController {
             updatedAt: new Date()
           }))
         } : undefined,
-        images: image.length > 0 ? {
+        image: image.length > 0 ? {
           create: image.map(img => ({
             color: img.color,
             code: img.code,
@@ -179,10 +203,10 @@ class VehicleMasterController {
       };
 
       if (manufacturer) {
-        createData.Manufacturer = { connect: { id: manufacturer } };
+        createData.manufacturer = { connect: { id: manufacturer } };
       }
       if (hsn) {
-        createData.Hsn = { connect: { id: hsn } };
+        createData.hsn = { connect: { id: hsn } };
       }
       if (user) {
         createData.User = { connect: { id: user } };
@@ -264,21 +288,9 @@ class VehicleMasterController {
 
       // Robust Branch/Manufacturer filtering logic
       let branchIds = req.user?.branch || [];
-      const userId = req.user?.id || req.headers["user-id"];
-
-      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0)) && userId) {
-        const userWithBranches = await prisma.user.findUnique({
-          where: { id: userId },
-          include: {
-            EmployeeProfile_User_profileToEmployeeProfile: { include: { branch: true } },
-            branches: true
-          }
-        });
-        if (userWithBranches) {
-          const profileBranches = userWithBranches.EmployeeProfile_User_profileToEmployeeProfile?.branch?.map(b => b.id) || [];
-          const userBranches = userWithBranches.branches?.map(b => b.id) || [];
-          branchIds = [...new Set([...profileBranches, ...userBranches])];
-        }
+      // Default to Devanahalli if no branches assigned
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+        branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
       }
 
       const branches = await prisma.branch.findMany({
@@ -288,7 +300,7 @@ class VehicleMasterController {
       const manufacturerIds = branches.flatMap(b => b.manufacturer.map(m => m.id));
 
       const where = {
-        manufacturer: { in: manufacturerIds },
+        manufacturerId: { in: manufacturerIds },
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
           { modelCode: { contains: inputValue, mode: 'insensitive' } },
@@ -312,7 +324,11 @@ class VehicleMasterController {
         response: {
           code: 200,
           msg: "Vehicle Masters  fetched",
-          data: { count, VehicleMaster: vehicles.map(v => this.formatVehicleMaster(v, req)) }
+          data: { 
+            count, 
+            VehicleMaster: vehicles.map(v => this.formatVehicleMaster(v, req)),
+            vehicleMaster: vehicles.map(v => this.formatVehicleMaster(v, req))
+          }
         }
       });
     } catch (err) {
@@ -343,7 +359,7 @@ class VehicleMasterController {
       const inputValue = searchString || "";
 
       const where = {
-        manufacturer: id,
+        manufacturerId: id,
         vehicleStatus: onlyAvailable && parseInt(onlyAvailable) === 1 ? "AVAILABLE" : undefined,
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
@@ -396,7 +412,7 @@ class VehicleMasterController {
       const inputValue = searchString || "";
 
       const where = {
-        manufacturer: id,
+        manufacturerId: id,
         vehicleStatus: onlyAvailable && parseInt(onlyAvailable) === 1 ? "AVAILABLE" : undefined,
         OR: [
           { modelName: { contains: inputValue, mode: 'insensitive' } },
@@ -594,15 +610,15 @@ class VehicleMasterController {
       };
 
       if (manufacturer) {
-        updateData.Manufacturer = { connect: { id: manufacturer } };
+        updateData.manufacturer = { connect: { id: manufacturer } };
       } else {
-        updateData.Manufacturer = { disconnect: true };
+        updateData.manufacturer = { disconnect: true };
       }
 
       if (hsn) {
-        updateData.Hsn = { connect: { id: hsn } };
+        updateData.hsn = { connect: { id: hsn } };
       } else {
-        updateData.Hsn = { disconnect: true };
+        updateData.hsn = { disconnect: true };
       }
 
       // Handle services upsert
@@ -631,7 +647,7 @@ class VehicleMasterController {
 
       // Handle files upsert
       if (file && Array.isArray(file)) {
-        updateData.files = {
+        updateData.file = {
           upsert: file.map(f => ({
             where: { id: f.id || "new-file" },
             update: {
@@ -653,7 +669,7 @@ class VehicleMasterController {
 
       // Handle images upsert
       if (image && Array.isArray(image)) {
-        updateData.images = {
+        updateData.image = {
           upsert: image.map(img => ({
             where: { id: img.id || "new-image" },
             update: {

@@ -43,7 +43,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "EMPLOYEE", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "EMPLOYEE", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -78,7 +78,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "CUSTOMER", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "CUSTOMER", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -115,7 +115,7 @@ class IdGenerateController {
       let idCreation = await prisma.idCreation.findFirst({
         where: { 
           subModule: "QUOTATIONS", 
-          Branch: branch ? { id: branch } : (branches && branches.length > 0 ? { id: { in: branches } } : undefined)
+          branch: branch || undefined
         },
         orderBy: { createdAt: "desc" },
       });
@@ -159,7 +159,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "BOOKINGREGISTER", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "BOOKINGREGISTER", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -197,7 +197,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "ACTIVITY", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "ACTIVITY", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -226,7 +226,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "SALECHALLAN", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "SALECHALLAN", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -240,7 +240,7 @@ class IdGenerateController {
       if (idCreation) {
         return { code: 200, message: "SaleChallanId Generated", data: idCreation.text + idCreation.count };
       } else {
-        const last = await prisma.saleChallan.findFirst({
+        const last = await prisma.saleRegister.findFirst({
           where: { fileNo: { startsWith: "SCHNY" } },
           orderBy: { createdAt: "desc" }
         });
@@ -258,7 +258,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "VEHICLESALEINVOICE", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "VEHICLESALEINVOICE", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -292,7 +292,7 @@ class IdGenerateController {
       let idCreation = await prisma.idCreation.findFirst({
         where: { 
           subModule: "JOBORDER", 
-          Branch: branch ? { id: branch } : (branches && branches.length > 0 ? { id: { in: branches } } : undefined)
+          branch: branch || undefined
         },
         orderBy: { createdAt: "desc" },
       });
@@ -327,7 +327,7 @@ class IdGenerateController {
       let idCreation = await prisma.idCreation.findFirst({
         where: { 
           subModule: "ESTIMATE", 
-          Branch: branch ? { id: branch } : (branches && branches.length > 0 ? { id: { in: branches } } : undefined)
+          branch: branch || undefined
         },
         orderBy: { createdAt: "desc" },
       });
@@ -342,7 +342,7 @@ class IdGenerateController {
       if (idCreation) {
         return { code: 200, message: "EstimateId Generated", data: idCreation.text + idCreation.count };
       } else {
-        const last = await prisma.estimateInvoice.findFirst({
+        const last = await prisma.estimate.findFirst({
           where: { estimateNo: { startsWith: "ESTNY" } },
           orderBy: { createdAt: "desc" }
         });
@@ -360,7 +360,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "VPC", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "VPC", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -374,7 +374,7 @@ class IdGenerateController {
       if (idCreation) {
         return { code: 200, message: "PurchaseChallanId Generated", data: idCreation.text + idCreation.count };
       } else {
-        const last = await prisma.purchaseChallan.findFirst({
+        const last = await prisma.vehiclePurchaseChallan.findFirst({
           where: { challanNo: { startsWith: "VPCNY" } },
           orderBy: { createdAt: "desc" }
         });
@@ -392,7 +392,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "VPI", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "VPI", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -406,7 +406,7 @@ class IdGenerateController {
       if (idCreation) {
         return { code: 200, message: "PurchaseInvoiceId Generated", data: idCreation.text + idCreation.count };
       } else {
-        const last = await prisma.purchaseInvoice.findFirst({
+        const last = await prisma.vehiclePurchaseInvoice.findFirst({
           where: { invoiceNo: { startsWith: "VPINY" } },
           orderBy: { createdAt: "desc" }
         });
@@ -424,7 +424,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "CUSTOMERSALESSPARE", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "CUSTOMERSALESSPARE", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -456,7 +456,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "JOBINVOICE", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "JOBINVOICE", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -488,7 +488,7 @@ class IdGenerateController {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "ENQUIRY", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "ENQUIRY", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 
@@ -516,11 +516,43 @@ class IdGenerateController {
     }
   };
 
+  purchaseSpareInvoiceIdGenerate = async (data) => {
+    try {
+      const { branch = null } = data;
+      let idCreation = await prisma.idCreation.findFirst({
+        where: { subModule: "PSI", branch: branch || undefined },
+        orderBy: { createdAt: "desc" },
+      });
+
+      if (!idCreation) {
+        idCreation = await prisma.idCreation.findFirst({
+          where: { subModule: "PSI" },
+          orderBy: { createdAt: "desc" },
+        });
+      }
+
+      if (idCreation) {
+        return { code: 200, message: "PurchaseSpareInvoiceId Generated", data: idCreation.text + idCreation.count };
+      } else {
+        const last = await prisma.purchaseSpareInvoice.findFirst({
+          where: { psiNo: { startsWith: "SPINY" } },
+          orderBy: { createdAt: "desc" }
+        });
+        let id = 1;
+        if (last && last.psiNo) id = parseInt(last.psiNo.slice(5)) + 1;
+        const count = id.toLocaleString("en-US", { minimumIntegerDigits: 3, useGrouping: false });
+        return { code: 200, message: "PurchaseSpareInvoiceId Generated", data: "SPINY" + count };
+      }
+    } catch (err) {
+      throw { code: 500, message: "error generating purchaseSpareInvoice Id", data: err };
+    }
+  };
+
   promotionsIdGenerate = async (data) => {
     try {
       const { branch = null } = data;
       let idCreation = await prisma.idCreation.findFirst({
-        where: { subModule: "PROMOTIONALTASKS", Branch: branch ? { id: branch } : undefined },
+        where: { subModule: "PROMOTIONALTASKS", branch: branch || undefined },
         orderBy: { createdAt: "desc" },
       });
 

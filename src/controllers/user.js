@@ -146,6 +146,13 @@ class UserController {
         ...rest,
         profile
       };
+    } else {
+      // Fallback for users without an employee profile to prevent frontend crashes
+      formattedUser.profile = {
+        branch: [],
+        documents: [],
+        department: null
+      };
     }
     return formattedUser;
   };
@@ -299,9 +306,9 @@ class UserController {
               createdAt: new Date(),
               updatedAt: new Date(),
               department: department ? { connect: { id: department } } : undefined,
-              branch: branch && branch.length > 0 ? {
+              branch: (branch && branch.length > 0) ? {
                 connect: branch.map(id => ({ id }))
-              } : undefined,
+              } : { connect: { id: "ck8g589vj499008806oh90nmx" } }, // Default: Devanahalli
               bankDetails: {
                 create: {
                   name,
@@ -570,8 +577,8 @@ class UserController {
 
       const payload = {
         id: user.id,
-        branch: (formattedUser.profile?.branch?.length > 0) 
-          ? formattedUser.profile.branch[0].id 
+        branch: (formattedUser.profile?.branch?.length > 0)
+          ? formattedUser.profile.branch[0].id
           : null
       };
 
@@ -781,14 +788,24 @@ class UserController {
       return res.json({ code: 500, msg: "An error occured" });
     }
   };
-
   getPage = async (req, res) => {
     try {
-      const { manager = true, searchString, page = 1, size = 10 } = req.body;
+      const { manager = true, searchString, page, size, branch } = req.body;
       const user = req.user?.id;
-      const branchIds = req.user?.branch || [];
-      const branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
-      const skip = (page - 1) * size;
+      
+      // Priority: branch from body -> branch from token (user.branch)
+      let branchArr = [];
+      if (branch) {
+        branchArr = Array.isArray(branch) ? branch : [branch];
+      } else {
+        const branchIds = req.user?.branch || [];
+        branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
+      }
+      
+      // Pagination handling: if size is missing, return all (parity with legacy Prisma 1)
+      const parsedPage = parseInt(page) || 1;
+      const parsedSize = size ? parseInt(size) : undefined;
+      const skip = parsedSize ? (parsedPage - 1) * parsedSize : undefined;
       const inputValue = searchString || "";
 
       if (!manager) {
@@ -820,20 +837,23 @@ class UserController {
         },
         OR: [
           { phone: { contains: inputValue, mode: 'insensitive' } },
-          { EmployeeProfile_User_profileToEmployeeProfile: { employeeName: { contains: inputValue, mode: 'insensitive' } } }
+          { EmployeeProfile_User_profileToEmployeeProfile: { employeeName: { contains: inputValue, mode: 'insensitive' } } },
+          { EmployeeProfile_User_profileToEmployeeProfile: { employeeId: { contains: inputValue, mode: 'insensitive' } } }
         ]
       };
 
       const [users, count] = await Promise.all([
         prisma.user.findMany({
           where,
-          take: size,
+          take: parsedSize,
           skip,
           orderBy: { createdAt: 'desc' },
           include: this.userInclude
         }),
         prisma.user.count({ where })
       ]);
+
+      console.log(`GET USER PAGE: found ${users.length} users for branches: ${branchArr}`);
 
       return res.json({
         code: 200,
@@ -848,13 +868,22 @@ class UserController {
       return res.json({ code: 500, msg: "an error occurred" });
     }
   };
-
   getEmployee = async (req, res) => {
     try {
-      const { searchString, page = 1, size = 10 } = req.body;
-      const branchIds = req.user?.branch || [];
-      const branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
-      const skip = (page - 1) * size;
+      const { searchString, page, size, branch } = req.body;
+      const user = req.user?.id;
+      
+      let branchArr = [];
+      if (branch) {
+        branchArr = Array.isArray(branch) ? branch : [branch];
+      } else {
+        const branchIds = req.user?.branch || [];
+        branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
+      }
+
+      const parsedPage = parseInt(page) || 1;
+      const parsedSize = size ? parseInt(size) : undefined;
+      const skip = parsedSize ? (parsedPage - 1) * parsedSize : undefined;
       const inputValue = searchString || "";
 
       const where = {
@@ -864,13 +893,14 @@ class UserController {
         },
         OR: [
           { phone: { contains: inputValue, mode: 'insensitive' } },
-          { EmployeeProfile_User_profileToEmployeeProfile: { employeeName: { contains: inputValue, mode: 'insensitive' } } }
+          { EmployeeProfile_User_profileToEmployeeProfile: { employeeName: { contains: inputValue, mode: 'insensitive' } } },
+          { EmployeeProfile_User_profileToEmployeeProfile: { employeeId: { contains: inputValue, mode: 'insensitive' } } }
         ]
       };
 
       const users = await prisma.user.findMany({
         where,
-        take: size,
+        take: parsedSize,
         skip,
         orderBy: { createdAt: 'desc' },
         include: this.userInclude
@@ -889,6 +919,8 @@ class UserController {
       return res.json({ code: 500, msg: "an error occurred" });
     }
   };
+
+
 
   deleteUser = async (req, res) => {
     try {

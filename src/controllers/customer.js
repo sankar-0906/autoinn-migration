@@ -37,9 +37,9 @@ class CustomerController {
           include: {
             vehicleDetail: {
               include: {
-                Manufacturer: true,
-                images: true,
-                prices: true
+                manufacturer: true,
+                image: true,
+                price: true
               }
             }
           }
@@ -51,8 +51,8 @@ class CustomerController {
       include: {
         vehicle: {
           include: {
-            Manufacturer: true,
-            prices: true
+            manufacturer: true,
+            price: true
           }
         },
         color: true
@@ -81,9 +81,9 @@ class CustomerController {
                 ...q.QuotationVehicle[0],
                 vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
                     ...q.QuotationVehicle[0].vehicleDetail,
-                    manufacturer: q.QuotationVehicle[0].vehicleDetail.Manufacturer,
-                    image: q.QuotationVehicle[0].vehicleDetail.images,
-                    price: q.QuotationVehicle[0].vehicleDetail.prices
+                    manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
+                    image: q.QuotationVehicle[0].vehicleDetail.image,
+                    price: q.QuotationVehicle[0].vehicleDetail.price
                 } : null
             } : null
         }));
@@ -94,8 +94,8 @@ class CustomerController {
             ...b,
             vehicle: b.vehicle ? {
                 ...b.vehicle,
-                manufacturer: b.vehicle.Manufacturer,
-                price: b.vehicle.prices
+                manufacturer: b.vehicle.manufacturer,
+                price: b.vehicle.price
             } : null
         }));
     }
@@ -303,7 +303,7 @@ class CustomerController {
             ...this.customerInclude,
             Vehicle: { // Many-to-many through CustomerHasVehicle
                 include: {
-                    vehicleMaster: { include: { Manufacturer: true } },
+                    vehicleMaster: { include: { manufacturer: true } },
                     color: true,
                     Customer: { include: { CustomerPhone: true } }
                 }
@@ -502,9 +502,9 @@ class CustomerController {
               ...q.QuotationVehicle[0],
               vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
                   ...q.QuotationVehicle[0].vehicleDetail,
-                  manufacturer: q.QuotationVehicle[0].vehicleDetail.Manufacturer,
-                  image: q.QuotationVehicle[0].vehicleDetail.images,
-                  price: q.QuotationVehicle[0].vehicleDetail.prices
+                  manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
+                  image: q.QuotationVehicle[0].vehicleDetail.image,
+                  price: q.QuotationVehicle[0].vehicleDetail.price
               } : null
           } : null
         }));

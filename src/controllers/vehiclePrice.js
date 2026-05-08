@@ -18,8 +18,9 @@ class VehiclePriceController {
   priceInclude = {
     vehicleModel: {
       include: {
-        Manufacturer: true,
-        images: true
+        manufacturer: true,
+        image: true,
+        file: true
       }
     },
     VehicleColor: true
@@ -50,10 +51,14 @@ class VehiclePriceController {
       discount: p.discount ? Number(p.discount) : 0,
       vehicleModel: p.vehicleModel ? {
         ...p.vehicleModel,
-        manufacturer: p.vehicleModel.Manufacturer || null,
-        image: (p.vehicleModel.images || []).map(img => ({
+        manufacturer: p.vehicleModel.manufacturer || null,
+        image: (p.vehicleModel.image || []).map(img => ({
           ...img,
           url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
+        })),
+        file: (p.vehicleModel.file || []).map(f => ({
+          ...f,
+          url: f.url ? (f.url.startsWith("http") ? f.url : `${baseUrl}${f.url}`) : ""
         }))
       } : null,
       colors: p.VehicleColor || []
@@ -260,12 +265,18 @@ class VehiclePriceController {
   getPage = async (req, res) => {
     try {
       const { page, size, searchString, validity } = req.body;
-      const branchIds = req.user?.branch || [];
+      // Robust Branch/Manufacturer filtering logic
+      let branchIds = req.user?.branch || [];
       const parsedPage = parseInt(page) || 1;
       const parsedSize = parseInt(size) || 10;
       const skip = (parsedPage - 1) * parsedSize;
       const inputValue = searchString || "";
       const tCased = await titleCase(inputValue);
+
+      // Default to Devanahalli if no branches assigned
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+        branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
+      }
 
       // Fetch manufacturers for the user's branches
       const branches = await prisma.branch.findMany({
@@ -355,7 +366,7 @@ class VehiclePriceController {
       const vehicle = await prisma.vehicleMaster.findUnique({
         where: { id },
         include: {
-          images: true
+          image: true
         }
       });
 
@@ -369,14 +380,14 @@ class VehiclePriceController {
 
       const transformedData = {
         ...vehicle,
-        colors: (vehicle.images || []).map(img => ({
+        colors: (vehicle.image || []).map(img => ({
           id: img.id,
           color: img.color,
           code: img.code,
           url: img.url ? (img.url.startsWith("http") ? img.url : `${baseUrl}${img.url}`) : ""
         }))
       };
-      delete transformedData.images;
+      delete transformedData.image;
 
       return res.json({
         code: 200,

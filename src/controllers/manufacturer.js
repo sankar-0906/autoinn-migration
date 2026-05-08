@@ -24,7 +24,7 @@ class ManufacturerController {
     console.log("-----------------------------------------------------------------");
     try {
       const {
-        name, code, logo, gst, email, vehicleManufacturer, address
+        name, code, logo, gst, email, vehicleManufacturer, address, manufacturer: branchIdsFromPayload
       } = req.body;
       const user = req.user?.id || req.headers["user-id"];
 
@@ -50,9 +50,14 @@ class ManufacturerController {
               district: address.district ? { connect: { id: address.district } } : undefined,
               state: address.state ? { connect: { id: address.state } } : undefined,
               country: address.country ? { connect: { id: address.country } } : undefined,
+              createdBy: user ? { connect: { id: user } } : undefined,
             }
           } : undefined,
-          createdBy: user ? { connect: { id: user } } : undefined
+          createdBy: user ? { connect: { id: user } } : undefined,
+          // Legacy payload uses field name 'manufacturer' to pass Branch IDs for linking
+          branches: branchIdsFromPayload && Array.isArray(branchIdsFromPayload) && branchIdsFromPayload.length > 0 ? {
+            connect: branchIdsFromPayload.map(id => ({ id }))
+          } : undefined
         },
         include: this.manufacturerInclude
       });
@@ -131,7 +136,7 @@ class ManufacturerController {
     try {
       const { id } = req.params;
       const {
-        name, logo, code, gst, email, vehicleManufacturer, address
+        name, logo, code, gst, email, vehicleManufacturer, address, manufacturer: branchIdsFromPayload
       } = req.body;
 
       // Note: Legacy logic uses 'create' for address even in update, 
@@ -163,6 +168,10 @@ class ManufacturerController {
               country: address.country ? { connect: { id: address.country } } : undefined,
             }
           } : undefined,
+          // Legacy payload uses field name 'manufacturer' to pass Branch IDs for linking
+          branches: branchIdsFromPayload && Array.isArray(branchIdsFromPayload) && branchIdsFromPayload.length > 0 ? {
+            connect: branchIdsFromPayload.map(id => ({ id }))
+          } : undefined
         },
         include: this.manufacturerInclude
       });
@@ -214,10 +223,11 @@ class ManufacturerController {
         id: req.params.id
       });
       return res.json({
-        code: 200, // Return 200 even on catch to prevent double-error messages in legacy frontend
+        code: 500,
         response: {
-          code: 200,
-          message: "Manufacturer deleted permanently."
+          code: 500,
+          message: "Error deleting manufacturer. It may be associated with other records.",
+          error: err.message
         }
       });
     }
@@ -272,31 +282,22 @@ class ManufacturerController {
 
   getBranch = async (req, res) => {
     try {
+      const { vehicle } = req.query;
       let branchIds = req.user?.branch || [];
       const userId = req.user?.id || req.headers["user-id"];
 
-      // If branchIds is empty or null, try fetching from DB for this user
-      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0)) && userId) {
-        const userWithBranches = await prisma.user.findUnique({
-          where: { id: userId },
-          include: {
-            EmployeeProfile_User_profileToEmployeeProfile: {
-              include: { branch: true }
-            },
-            branches: true
-          }
-        });
-
-        if (userWithBranches) {
-          const profileBranches = userWithBranches.EmployeeProfile_User_profileToEmployeeProfile?.branch?.map(b => b.id) || [];
-          const userBranches = userWithBranches.branches?.map(b => b.id) || [];
-          branchIds = [...new Set([...profileBranches, ...userBranches])];
-        }
+      // Default to Devanahalli if no branches assigned
+      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+        branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
       }
 
       const branches = await prisma.branch.findMany({
         where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
-        include: { manufacturer: true }
+        include: { 
+          manufacturer: {
+            where: vehicle === "true" ? { vehicleManufacturer: true } : undefined
+          }
+        }
       });
 
       let manufacturers = [];
