@@ -65,50 +65,100 @@ class PurchaseSpareInvoiceController {
         });
       }
 
-      const created = await prisma.purchaseSpareInvoice.create({
-        data: {
-          invoiceNumber,
-          psiNo,
-          invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
-          currentDate: new Date(),
-          itemRate: finalItemRate,
-          discountType,
-          discountPercent: parseFloat(discountPercent) || 0,
-          discountRate: parseFloat(discountRate) || 0,
-          tcs: parseFloat(tcs) || 0,
-          cgst: parseFloat(cgst) || 0,
-          sgst: parseFloat(sgst) || 0,
-          igst: parseFloat(igst) || 0,
-          totalDiscount: parseFloat(totalDiscount) || 0,
-          adjustment: parseFloat(adjustment) || 0,
-          totalInvoice: parseFloat(totalInvoice) || 0,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          supplier: finalSupplier ? { connect: { id: finalSupplier } } : undefined,
-          createdBy: user ? { connect: { id: user } } : undefined,
-          PurchaseSpareInvoiceItem: purchaseItemInvoice && purchaseItemInvoice.length > 0 ? {
-            create: purchaseItemInvoice.map(item => ({
-              partNumber: { connect: { id: item.partNumber?.id || item.partNumber } },
-              hsn: (item.hsn?.id || item.hsn) ? { connect: { id: item.hsn?.id || item.hsn } } : undefined,
-              branch: (item.branch?.id || item.branch || branch) ? { connect: { id: item.branch?.id || item.branch || branch } } : undefined,
-              partName: item.partName,
-              quantity: parseFloat(item.quantity) || 0,
-              unitRate: parseFloat(item.unitRate) || 0,
-              igst: parseFloat(item.igst) || 0,
-              cgst: parseFloat(item.cgst) || 0,
-              sgst: parseFloat(item.sgst) || 0,
-              gstRate: parseFloat(item.gstRate) || 0,
-              igstAmount: parseFloat(item.igstAmount) || 0,
-              cgstAmount: parseFloat(item.cgstAmount) || 0,
-              sgstAmount: parseFloat(item.sgstAmount) || 0,
-              discountAmount: parseFloat(item.discountAmount) || 0,
-              discountPercent: parseFloat(item.discountPercent) || 0,
+      const result = await prisma.$transaction(async (tx) => {
+        const created = await tx.purchaseSpareInvoice.create({
+          data: {
+            invoiceNumber,
+            psiNo,
+            invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
+            currentDate: new Date(),
+            itemRate: finalItemRate,
+            status: "True",
+            discountType,
+            discountPercent: parseFloat(discountPercent) || 0,
+            discountRate: parseFloat(discountRate) || 0,
+            tcs: parseFloat(tcs) || 0,
+            cgst: parseFloat(cgst) || 0,
+            sgst: parseFloat(sgst) || 0,
+            igst: parseFloat(igst) || 0,
+            totalDiscount: parseFloat(totalDiscount) || 0,
+            adjustment: parseFloat(adjustment) || 0,
+            totalInvoice: parseFloat(totalInvoice) || 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            supplier: finalSupplier ? { connect: { id: finalSupplier } } : undefined,
+            createdBy: user ? { connect: { id: user } } : undefined,
+            PurchaseSpareInvoiceItem: purchaseItemInvoice && purchaseItemInvoice.length > 0 ? {
+              create: purchaseItemInvoice.map(item => ({
+                partNumber: { connect: { id: item.partNumber?.id || item.partNumber } },
+                hsn: (item.hsn?.id || item.hsn) ? { connect: { id: item.hsn?.id || item.hsn } } : undefined,
+                branch: (item.branch?.id || item.branch || branch) ? { connect: { id: item.branch?.id || item.branch || branch } } : undefined,
+                partName: item.partName,
+                quantity: parseFloat(item.quantity) || 0,
+                unitRate: parseFloat(item.unitRate) || 0,
+                igst: parseFloat(item.igst) || 0,
+                cgst: parseFloat(item.cgst) || 0,
+                sgst: parseFloat(item.sgst) || 0,
+                gstRate: parseFloat(item.gstRate) || 0,
+                igstAmount: parseFloat(item.igstAmount) || 0,
+                cgstAmount: parseFloat(item.cgstAmount) || 0,
+                sgstAmount: parseFloat(item.sgstAmount) || 0,
+                discountAmount: parseFloat(item.discountAmount) || 0,
+                discountPercent: parseFloat(item.discountPercent) || 0,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              }))
+            } : undefined
+          },
+          include: this.invoiceInclude
+        });
+
+        // Update Inventory and Create Transactions
+        for (const item of (purchaseItemInvoice || [])) {
+          const partId = item.partNumber?.id || item.partNumber;
+          const qty = parseFloat(item.quantity) || 0;
+          const branchId = item.branch?.id || item.branch || branch;
+
+          if (!partId) continue;
+
+          // 1. Create Transaction record for History
+          await tx.transactions.create({
+            data: {
               createdAt: new Date(),
-              updatedAt: new Date()
-            }))
-          } : undefined
-        },
-        include: this.invoiceInclude
+              type: "Purchase Spare Invoice",
+              Quantity: parseInt(qty),
+              Part: { connect: { id: partId } },
+              sparesPurchase: { connect: { id: created.id } }
+            }
+          });
+
+          // 2. Update SparesInventory
+          const existingInv = await tx.sparesInventory.findFirst({
+            where: { partId, branchId }
+          });
+
+          if (existingInv) {
+            await tx.sparesInventory.update({
+              where: { id: existingInv.id },
+              data: {
+                phyQuantity: { increment: parseInt(qty) },
+                accQuantity: { increment: parseInt(qty) }
+              }
+            });
+          } else {
+            await tx.sparesInventory.create({
+              data: {
+                createdAt: new Date(),
+                phyQuantity: parseInt(qty),
+                accQuantity: parseInt(qty),
+                partNo: { connect: { id: partId } },
+                branch: { connect: { id: branchId } }
+              }
+            });
+          }
+        }
+
+        return created;
       });
 
       // Increment ID counter
@@ -119,7 +169,7 @@ class PurchaseSpareInvoiceController {
         response: {
           code: 200,
           message: "Purchase Spare Invoice created successfully",
-          data: this.transformInvoice(created)
+          data: this.transformInvoice(result)
         }
       });
     } catch (err) {
@@ -151,59 +201,127 @@ class PurchaseSpareInvoiceController {
         });
       }
 
-      // 1. Delete existing items
-      await prisma.purchaseSpareInvoiceItem.deleteMany({
-        where: { purchaseSpareInvoiceId: id }
-      });
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Fetch old items to revert inventory
+        const oldInvoice = await tx.purchaseSpareInvoice.findUnique({
+          where: { id },
+          include: { PurchaseSpareInvoiceItem: true }
+        });
 
-      // 2. Update the main invoice and recreate items
-      const updated = await prisma.purchaseSpareInvoice.update({
-        where: { id },
-        data: {
-          invoiceNumber,
-          psiNo,
-          invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
-          itemRate: finalItemRate,
-          discountType,
-          discountPercent: parseFloat(discountPercent) || 0,
-          discountRate: parseFloat(discountRate) || 0,
-          tcs: parseFloat(tcs) || 0,
-          cgst: parseFloat(cgst) || 0,
-          sgst: parseFloat(sgst) || 0,
-          igst: parseFloat(igst) || 0,
-          totalDiscount: parseFloat(totalDiscount) || 0,
-          adjustment: parseFloat(adjustment) || 0,
-          totalInvoice: parseFloat(totalInvoice) || 0,
-          supplierId: finalSupplier,
-          PurchaseSpareInvoiceItem: purchaseItemInvoice ? {
-            create: purchaseItemInvoice.map(item => {
-              const partNumberId = item.partNumber?.id || (typeof item.partNumber === 'string' ? item.partNumber : null);
-              const hsnId = item.hsn?.id || (typeof item.hsn === 'string' ? item.hsn : null);
-              const branchId = item.branch?.id || (typeof item.branch === 'string' ? item.branch : (branch || null));
-              
-              return {
-                partName: item.partName,
-                quantity: parseFloat(item.quantity) || 0,
-                unitRate: parseFloat(item.unitRate) || 0,
-                igst: parseFloat(item.igst) || 0,
-                cgst: parseFloat(item.cgst) || 0,
-                sgst: parseFloat(item.sgst) || 0,
-                gstRate: parseFloat(item.gstRate) || 0,
-                igstAmount: parseFloat(item.igstAmount) || 0,
-                cgstAmount: parseFloat(item.cgstAmount) || 0,
-                sgstAmount: parseFloat(item.sgstAmount) || 0,
-                discountAmount: parseFloat(item.discountAmount) || 0,
-                discountPercent: parseFloat(item.discountPercent) || 0,
-                partNumberId,
-                hsnId,
-                branchId,
+        if (oldInvoice) {
+          for (const oldItem of oldInvoice.PurchaseSpareInvoiceItem) {
+            if (oldItem.partNumberId && oldItem.branchId) {
+              await tx.sparesInventory.updateMany({
+                where: { partId: oldItem.partNumberId, branchId: oldItem.branchId },
+                data: {
+                  phyQuantity: { decrement: parseInt(oldItem.quantity) },
+                  accQuantity: { decrement: parseInt(oldItem.quantity) }
+                }
+              });
+            }
+          }
+        }
+
+        // 2. Delete existing items and transactions
+        await tx.purchaseSpareInvoiceItem.deleteMany({ where: { purchaseSpareInvoiceId: id } });
+        await tx.transactions.deleteMany({ where: { sparesPurchaseId: id } });
+
+        // 3. Update the main invoice and recreate items
+        const updated = await tx.purchaseSpareInvoice.update({
+          where: { id },
+          data: {
+            invoiceNumber,
+            psiNo,
+            invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
+            itemRate: finalItemRate,
+            discountType,
+            discountPercent: parseFloat(discountPercent) || 0,
+            discountRate: parseFloat(discountRate) || 0,
+            tcs: parseFloat(tcs) || 0,
+            cgst: parseFloat(cgst) || 0,
+            sgst: parseFloat(sgst) || 0,
+            igst: parseFloat(igst) || 0,
+            totalDiscount: parseFloat(totalDiscount) || 0,
+            adjustment: parseFloat(adjustment) || 0,
+            totalInvoice: parseFloat(totalInvoice) || 0,
+            supplierId: finalSupplier,
+            PurchaseSpareInvoiceItem: {
+              create: purchaseItemInvoice.map(item => {
+                const partNumberId = item.partNumber?.id || (typeof item.partNumber === 'string' ? item.partNumber : null);
+                const hsnId = item.hsn?.id || (typeof item.hsn === 'string' ? item.hsn : null);
+                const branchId = item.branch?.id || (typeof item.branch === 'string' ? item.branch : (branch || null));
+                
+                return {
+                  partName: item.partName,
+                  quantity: parseFloat(item.quantity) || 0,
+                  unitRate: parseFloat(item.unitRate) || 0,
+                  igst: parseFloat(item.igst) || 0,
+                  cgst: parseFloat(item.cgst) || 0,
+                  sgst: parseFloat(item.sgst) || 0,
+                  gstRate: parseFloat(item.gstRate) || 0,
+                  igstAmount: parseFloat(item.igstAmount) || 0,
+                  cgstAmount: parseFloat(item.cgstAmount) || 0,
+                  sgstAmount: parseFloat(item.sgstAmount) || 0,
+                  discountAmount: parseFloat(item.discountAmount) || 0,
+                  discountPercent: parseFloat(item.discountPercent) || 0,
+                  partNumberId,
+                  hsnId,
+                  branchId,
+                  createdAt: new Date(),
+                  updatedAt: new Date()
+                };
+              })
+            }
+          },
+          include: this.invoiceInclude
+        });
+
+        // 4. Update Inventory with new quantities and Create new Transactions
+        for (const item of (purchaseItemInvoice || [])) {
+          const partId = item.partNumber?.id || (typeof item.partNumber === 'string' ? item.partNumber : null);
+          const qty = parseFloat(item.quantity) || 0;
+          const branchId = item.branch?.id || (typeof item.branch === 'string' ? item.branch : (branch || null));
+
+          if (!partId) continue;
+
+          // Create Transaction
+          await tx.transactions.create({
+            data: {
+              createdAt: new Date(),
+              type: "Purchase Spare Invoice",
+              Quantity: parseInt(qty),
+              Part: { connect: { id: partId } },
+              sparesPurchase: { connect: { id: updated.id } }
+            }
+          });
+
+          // Update Inventory
+          const existingInv = await tx.sparesInventory.findFirst({
+            where: { partId, branchId }
+          });
+
+          if (existingInv) {
+            await tx.sparesInventory.update({
+              where: { id: existingInv.id },
+              data: {
+                phyQuantity: { increment: parseInt(qty) },
+                accQuantity: { increment: parseInt(qty) }
+              }
+            });
+          } else {
+            await tx.sparesInventory.create({
+              data: {
                 createdAt: new Date(),
-                updatedAt: new Date()
-              };
-            })
-          } : undefined
-        },
-        include: this.invoiceInclude
+                phyQuantity: parseInt(qty),
+                accQuantity: parseInt(qty),
+                partNo: { connect: { id: partId } },
+                branch: { connect: { id: branchId } }
+              }
+            });
+          }
+        }
+
+        return updated;
       });
 
       return res.json({
@@ -211,7 +329,7 @@ class PurchaseSpareInvoiceController {
         response: {
           code: 200,
           message: "Purchase Spare Invoice updated successfully",
-          data: this.transformInvoice(updated)
+          data: this.transformInvoice(result)
         }
       });
     } catch (err) {
@@ -224,12 +342,31 @@ class PurchaseSpareInvoiceController {
     try {
       const { id } = req.params;
       
-      await prisma.purchaseSpareInvoiceItem.deleteMany({
-        where: { purchaseSpareInvoiceId: id }
-      });
+      await prisma.$transaction(async (tx) => {
+        // 1. Fetch items to revert inventory
+        const oldInvoice = await tx.purchaseSpareInvoice.findUnique({
+          where: { id },
+          include: { PurchaseSpareInvoiceItem: true }
+        });
 
-      await prisma.purchaseSpareInvoice.delete({
-        where: { id }
+        if (oldInvoice) {
+          for (const oldItem of oldInvoice.PurchaseSpareInvoiceItem) {
+            if (oldItem.partNumberId && oldItem.branchId) {
+              await tx.sparesInventory.updateMany({
+                where: { partId: oldItem.partNumberId, branchId: oldItem.branchId },
+                data: {
+                  phyQuantity: { decrement: parseInt(oldItem.quantity) },
+                  accQuantity: { decrement: parseInt(oldItem.quantity) }
+                }
+              });
+            }
+          }
+        }
+
+        // 2. Delete transactions, items and invoice
+        await tx.transactions.deleteMany({ where: { sparesPurchaseId: id } });
+        await tx.purchaseSpareInvoiceItem.deleteMany({ where: { purchaseSpareInvoiceId: id } });
+        await tx.purchaseSpareInvoice.delete({ where: { id } });
       });
 
       return res.json({
