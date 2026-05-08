@@ -396,7 +396,7 @@ class SparesInventoryController {
         }
       };
 
-      const [inventories, count] = await Promise.all([
+      const [inventories, count, allInventory] = await Promise.all([
         prisma.sparesInventory.findMany({
           where,
           take: parsedSize,
@@ -404,15 +404,29 @@ class SparesInventoryController {
           orderBy: { createdAt: 'desc' },
           include: this.inventoryInclude
         }),
-        prisma.sparesInventory.count({ where })
+        prisma.sparesInventory.count({ where }),
+        // Fetch all matching inventory for total cost calculation (legacy behavior)
+        prisma.sparesInventory.findMany({
+          where,
+          include: { partNo: true }
+        })
       ]);
+
+      const total = allInventory.reduce((acc, item) => {
+        const mrp = parseFloat(item.partNo?.mrp) || 0;
+        return acc + (item.phyQuantity * mrp);
+      }, 0);
 
       return res.json({
         code: 200,
         response: {
           code: 200,
           msg: "Spares Inventories  fetched",
-          data: { count, sparesInventory: inventories.map(i => this.formatInventory(i)) }
+          data: { 
+            count, 
+            sparesInventory: inventories.map(i => this.formatInventory(i)),
+            total: Number(total.toFixed(2))
+          }
         }
       });
     } catch (err) {

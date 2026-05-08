@@ -160,12 +160,15 @@ class InventoryTransfersController {
       });
 
       return res.status(result.success ? 200 : 400).json({
-        success: result.success,
-        message: result.success ? `${result.count} vehicles transferred successfully.` : result.message
+        code: result.success ? 200 : 400,
+        data: {
+          success: result.success,
+          message: result.success ? `${result.count} vehicles transferred successfully.` : result.message
+        }
       });
     } catch (err) {
       logger.error("Transfer vehicles error:", err);
-      return res.status(500).json({ success: false, message: "Internal server error", error: err.message });
+      return res.status(500).json({ code: 500, message: "Internal server error", error: err.message });
     }
   };
 
@@ -276,10 +279,13 @@ class InventoryTransfersController {
         }
       });
 
-      return res.json({ success: true, message: "Spares transferred successfully!" });
+      return res.json({ 
+        code: 200, 
+        data: { success: true, message: "Spares transferred successfully!" } 
+      });
     } catch (err) {
       logger.error("Transfer spares error:", err);
-      return res.status(400).json({ success: false, message: err.message });
+      return res.status(400).json({ code: 400, success: false, message: err.message });
     }
   };
 
