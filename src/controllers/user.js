@@ -66,7 +66,7 @@ class UserController {
    * Helper to format Department object (mapping RoleAccess to roleAccess).
    */
   formatDepartment(dept) {
-    if (!dept) return null;
+    if (!dept) return { role: "" };
     const { RoleAccess, ...rest } = dept;
     return {
       ...rest,
@@ -151,7 +151,7 @@ class UserController {
       formattedUser.profile = {
         branch: [],
         documents: [],
-        department: null
+        department: { role: "" }
       };
     }
     return formattedUser;
