@@ -3,6 +3,7 @@ import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 
 import IdGenerateController from "./idGenerate.js";
+import JobOrderController from "./jobOrder.js";
 
 /**
  * Controller for Service Estimate operations.
@@ -12,24 +13,75 @@ class EstimateController {
   // Shared include object for Estimate
   estimateInclude = {
     jobOrder: {
-      include: {
-        customer: true,
-        vehicle: { include: { vehicle: true } },
-        branch: true
-      }
+      include: JobOrderController.fragment
     },
-    estimateItemInvoice: {
+    EstimateItem: {
       include: {
-        partNumber: true,
-        hsn: true
-      }
-    },
-    estimateJobInvoice: {
-      include: {
-        jobCode: true,
+        partNumber: { include: { manufacturer: true } },
+        jobCode: { include: { sac: true } },
+        hsn: true,
         sac: true
       }
+    },
+    insurer: true,
+    survivor: { include: { CustomerPhone: true } },
+    branch: { include: { manufacturer: true } }
+  };
+
+  /**
+   * Helper to format Estimate object to match legacy fragment structure.
+   */
+  formatEstimate = (estimate) => {
+    if (!estimate) return null;
+    const formatted = { ...estimate };
+
+    // Map jobOrder using JobOrder formatter
+    if (formatted.jobOrder) {
+      formatted.jobOrder = JobOrderController.formatJobOrder(formatted.jobOrder);
     }
+
+    // Map survivor CustomerPhone to contacts
+    if (formatted.survivor) {
+      if (formatted.survivor.CustomerPhone) {
+        formatted.survivor.contacts = formatted.survivor.CustomerPhone;
+        delete formatted.survivor.CustomerPhone;
+      }
+    }
+
+    // Convert Decimal fields to Numbers
+    const decimalFields = [
+      'itemRate', 'discountPercent', 'discountRate', 'tcs', 'cgst', 'sgst', 'igst',
+      'cgstAmount', 'sgstAmount', 'igstAmount', 'totalDiscount', 'adjustment',
+      'labourCharge', 'consumableCharge', 'partCharge', 'estTotalAmount'
+    ];
+    decimalFields.forEach(field => {
+      if (formatted[field] !== undefined && formatted[field] !== null) {
+        formatted[field] = Number(formatted[field]);
+      }
+    });
+
+    // Alias estTotalAmount to totalInvoice for legacy compatibility if needed
+    formatted.totalInvoice = formatted.estTotalAmount;
+
+    // Map EstimateItem to estimateItemInvoice
+    if (formatted.EstimateItem) {
+      formatted.estimateItemInvoice = formatted.EstimateItem.map(item => {
+        const formattedItem = { ...item };
+        const itemDecimals = [
+          'quantity', 'unitRate', 'gstRate', 'igst', 'cgst', 'sgst',
+          'igstAmount', 'cgstAmount', 'sgstAmount', 'discountAmount', 'discountPercent'
+        ];
+        itemDecimals.forEach(f => {
+          if (formattedItem[f] !== undefined && formattedItem[f] !== null) {
+            formattedItem[f] = Number(formattedItem[f]);
+          }
+        });
+        return formattedItem;
+      });
+      delete formatted.EstimateItem;
+    }
+
+    return formatted;
   };
 
   createEstimate = async (req, res) => {
@@ -42,7 +94,7 @@ class EstimateController {
       } = req.body;
       const user = req.user?.id || req.headers["user-id"];
 
-      const created = await prisma.estimateInvoice.create({
+      const created = await prisma.estimate.create({
         data: {
           estimateNo,
           dateTime: dateTime ? new Date(dateTime) : new Date(),
@@ -57,14 +109,15 @@ class EstimateController {
           igst: parseFloat(igst) || 0,
           totalDiscount: parseFloat(totalDiscount) || 0,
           adjustment: parseFloat(adjustment) || 0,
-          totalInvoice: parseFloat(totalInvoice) || 0,
+          estTotalAmount: parseFloat(totalInvoice) || 0,
           createdAt: new Date(),
           updatedAt: new Date(),
           jobOrder: jobOrder ? { connect: { id: jobOrder } } : undefined,
           createdBy: user ? { connect: { id: user } } : undefined,
-          estimateItemInvoice: estimateItemInvoice && estimateItemInvoice.length > 0 ? {
+          EstimateItem: estimateItemInvoice && estimateItemInvoice.length > 0 ? {
             create: estimateItemInvoice.map(item => ({
-              partNumber: { connect: { id: item.partNumber } },
+              partNumber: item.partNumber ? { connect: { id: item.partNumber } } : undefined,
+              jobCode: item.jobCode ? { connect: { id: item.jobCode } } : undefined,
               partName: item.partName,
               quantity: parseFloat(item.quantity) || 0,
               unitRate: parseFloat(item.unitRate) || 0,
@@ -113,7 +166,11 @@ class EstimateController {
 
       return res.json({
         code: 200,
-        response: created
+        response: {
+          code: 200,
+          msg: "Estimate Invoice created",
+          data: this.formatEstimate(created)
+        }
       });
     } catch (err) {
       logger.error("Create estimate error:", err);
@@ -124,7 +181,7 @@ class EstimateController {
   getOne = async (req, res) => {
     try {
       const { id } = req.params;
-      const estimate = await prisma.estimateInvoice.findUnique({
+      const estimate = await prisma.estimate.findUnique({
         where: { id },
         include: this.estimateInclude
       });
@@ -132,7 +189,11 @@ class EstimateController {
       if (estimate) {
         return res.json({
           code: 200,
-          response: estimate
+          response: {
+            code: 200,
+            msg: "Estimate fetched",
+            data: this.formatEstimate(estimate)
+          }
         });
       }
       return res.status(404).json({ code: 404, message: "Not found" });
@@ -157,19 +218,26 @@ class EstimateController {
       };
 
       const [estimates, count] = await Promise.all([
-        prisma.estimateInvoice.findMany({
+        prisma.estimate.findMany({
           where,
           take: size,
           skip,
           orderBy: { createdAt: 'desc' },
           include: this.estimateInclude
         }),
-        prisma.estimateInvoice.count({ where })
+        prisma.estimate.count({ where })
       ]);
 
       return res.json({
         code: 200,
-        response: { count, estimate: estimates }
+        response: { 
+          code: 200,
+          msg: "Estimates fetched",
+          data: { 
+            count, 
+            Estimate: estimates.map(e => this.formatEstimate(e)) 
+          }
+        }
       });
     } catch (err) {
       logger.error("Get estimate page error:", err);

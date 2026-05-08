@@ -31,6 +31,42 @@ class JobOrderController {
     }
   };
 
+  /**
+   * Helper to format JobOrder object to match legacy fragment structure.
+   */
+  formatJobOrder = (jobOrder) => {
+    if (!jobOrder) return null;
+    const formatted = { ...jobOrder };
+
+    // Map VehicleMaster to 'vehicle' inside vehicle
+    if (formatted.vehicle) {
+      if (formatted.vehicle.vehicleMaster) {
+        formatted.vehicle.vehicle = formatted.vehicle.vehicleMaster;
+        delete formatted.vehicle.vehicleMaster;
+      }
+    }
+
+    // Map Mechanic's EmployeeProfile to 'profile'
+    if (formatted.mechanic) {
+      if (formatted.mechanic.EmployeeProfile_User_profileToEmployeeProfile) {
+        formatted.mechanic.profile = formatted.mechanic.EmployeeProfile_User_profileToEmployeeProfile;
+        delete formatted.mechanic.EmployeeProfile_User_profileToEmployeeProfile;
+      } else {
+        formatted.mechanic.profile = { department: {} };
+      }
+    }
+
+    // Map Customer's CustomerPhone to contacts
+    if (formatted.customer) {
+      if (formatted.customer.CustomerPhone) {
+        formatted.customer.contacts = formatted.customer.CustomerPhone;
+        delete formatted.customer.CustomerPhone;
+      }
+    }
+
+    return formatted;
+  };
+
   createJobOrder = async (req, res) => {
     try {
       const data = req.body;
@@ -49,7 +85,7 @@ class JobOrderController {
       return res.json({
         code: 200,
         msg: "JobOrder created",
-        data: created
+        data: this.formatJobOrder(created)
       });
     } catch (err) {
       logger.error("Create job order error:", err);
@@ -72,7 +108,7 @@ class JobOrderController {
           response: { 
              code: 200,
              msg: "JobOrder fetched",
-             data: jobOrder 
+             data: this.formatJobOrder(jobOrder) 
           }
         });
       }
@@ -127,7 +163,7 @@ class JobOrderController {
         response: { 
           code: 200,
           msg: "JobOrders fetched",
-          data: { count, jobOrder: jobOrders } 
+          data: { count, jobOrder: jobOrders.map(j => this.formatJobOrder(j)) } 
         }
       });
     } catch (err) {
@@ -161,7 +197,7 @@ class JobOrderController {
         response: {
           code: 200,
           msg: "Status updated",
-          data: updated
+          data: this.formatJobOrder(updated)
         }
       });
     } catch (err) {
@@ -338,7 +374,10 @@ class JobOrderController {
         response: {
           code: 200,
           msg: "Data fetched",
-          data: finalData
+          data: {
+             ...finalData,
+             jobOrders: allJobs.map(j => this.formatJobOrder(j))
+          }
         }
       });
     } catch (err) {
@@ -377,10 +416,11 @@ class JobOrderController {
           code: 200,
           msg: "Job history fetched",
           data: { 
-            History: jobOrders, 
+            History: jobOrders.map(j => this.formatJobOrder(j)), 
             Invoice: invoices.map(inv => ({
               ...inv,
-              saleItemInvoice: inv.SaleSpareInvoiceItem
+              saleItemInvoice: inv.SaleSpareInvoiceItem,
+              jobOrder: this.formatJobOrder(inv.jobOrder)
             })) 
           }
         }
@@ -412,7 +452,7 @@ class JobOrderController {
         response: {
           code: 200,
           msg: "Job orders fetched",
-          data: jobOrders
+          data: jobOrders.map(j => this.formatJobOrder(j))
         }
       });
     } catch (err) {
