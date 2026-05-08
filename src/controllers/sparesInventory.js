@@ -45,7 +45,13 @@ class SparesInventoryController {
         supplier: true,
         PurchaseSpareInvoiceItem: {
           include: {
-            branch: true
+            branch: true,
+            partNumber: {
+              include: {
+                manufacturer: true,
+                hsn: true
+              }
+            }
           }
         }
       }
@@ -63,7 +69,19 @@ class SparesInventoryController {
           }
         },
         partyName: true,
-        branch: true
+        branch: true,
+        SaleSpareInvoiceItem: {
+          include: {
+            partNumber: {
+              include: {
+                manufacturer: true,
+                hsn: true
+              }
+            },
+            hsn: true,
+            branch: true
+          }
+        }
       }
     },
     sparesMaterialSale: {
@@ -78,7 +96,18 @@ class SparesInventoryController {
             }
           }
         },
-        branch: true
+        branch: true,
+        MaterialPartsIssue: {
+          include: {
+            part: {
+              include: {
+                manufacturer: true,
+                hsn: true
+              }
+            },
+            branch: true
+          }
+        }
       }
     }
   };
@@ -121,9 +150,54 @@ class SparesInventoryController {
     if (formatted.sparesPurchase) {
       formatted.sparesPurchase = {
         ...formatted.sparesPurchase,
-        purchaseItemInvoice: formatted.sparesPurchase.PurchaseSpareInvoiceItem || []
+        purchaseItemInvoice: (formatted.sparesPurchase.PurchaseSpareInvoiceItem || []).map(item => ({
+          ...item,
+          partNumber: this.formatPart(item.partNumber)
+        }))
+      };
+      formatted.linkObj = {
+        id: formatted.sparesPurchase.invoiceNumber,
+        link: `/purchase-spare-invoice/view/${formatted.sparesPurchase.id}`
       };
       delete formatted.sparesPurchase.PurchaseSpareInvoiceItem;
+    }
+
+    if (formatted.sparesSale) {
+      formatted.sparesSale = {
+        ...formatted.sparesSale,
+        saleItemInvoice: (formatted.sparesSale.SaleSpareInvoiceItem || []).map(item => ({
+          ...item,
+          partNumber: this.formatPart(item.partNumber)
+        }))
+      };
+      formatted.linkObj = {
+        id: formatted.sparesSale.invoiceNumber,
+        link: `/sale-spare-invoice/view/${formatted.sparesSale.id}`
+      };
+      delete formatted.sparesSale.SaleSpareInvoiceItem;
+    }
+
+    if (formatted.sparesMaterialSale) {
+      formatted.sparesMaterialSale = {
+        ...formatted.sparesMaterialSale,
+        parts: (formatted.sparesMaterialSale.MaterialPartsIssue || []).map(item => ({
+          ...item,
+          part: this.formatPart(item.part)
+        }))
+      };
+      formatted.linkObj = {
+        id: formatted.sparesMaterialSale.slipNumber,
+        link: `/material-issue/view/${formatted.sparesMaterialSale.id}`
+      };
+      delete formatted.sparesMaterialSale.MaterialPartsIssue;
+    }
+
+    // Fallback for manual adjustments
+    if (!formatted.linkObj) {
+      formatted.linkObj = {
+        id: "-",
+        link: "#"
+      };
     }
 
     return formatted;
@@ -136,49 +210,102 @@ class SparesInventoryController {
       
       console.log("Add Spares Inventory Data", req.body);
       
-      let results = [];
-      for (const item of branch) {
-        // Legacy logic: upsert by branch and part
-        const existing = await prisma.sparesInventory.findFirst({
-          where: {
-            branchId: item.branch,
-            partId: part.id
-          }
-        });
+      const results = await prisma.$transaction(async (tx) => {
+        let items = [];
+        for (const item of branch) {
+          // Legacy logic: upsert by branch and part
+          const existing = await tx.sparesInventory.findFirst({
+            where: {
+              branchId: item.branch,
+              partId: part.id
+            }
+          });
 
-        if (existing) {
-          const updated = await prisma.sparesInventory.update({
-            where: { id: existing.id },
-            data: {
-              phyQuantity: item.phyQuantity ? Math.max(0, parseInt(item.phyQuantity)) : 0,
-              accQuantity: item.accQuantity ? Math.max(0, parseInt(item.accQuantity)) : 0,
-              binNum: item.binNum || ""
-            },
-            include: this.inventoryInclude
-          });
-          results.push(this.formatInventory(updated));
-        } else {
-          const created = await prisma.sparesInventory.create({
-            data: {
-              createdAt: new Date(),
-              phyQuantity: item.phyQuantity ? Math.max(0, parseInt(item.phyQuantity)) : 0,
-              accQuantity: item.accQuantity ? Math.max(0, parseInt(item.accQuantity)) : 0,
-              binNum: item.binNum || "",
-              partNo: { connect: { id: part.id } },
-              branch: { connect: { id: item.branch } }
-            },
-            include: this.inventoryInclude
-          });
-          results.push(this.formatInventory(created));
+          if (existing) {
+            const oldPhy = existing.phyQuantity || 0;
+            const newPhy = item.phyQuantity ? Math.max(0, parseInt(item.phyQuantity)) : 0;
+            const diffPhy = newPhy - oldPhy;
+
+            const oldAcc = existing.accQuantity || 0;
+            const newAcc = item.accQuantity ? Math.max(0, parseInt(item.accQuantity)) : 0;
+            const diffAcc = newAcc - oldAcc;
+
+            const updated = await tx.sparesInventory.update({
+              where: { id: existing.id },
+              data: {
+                phyQuantity: newPhy,
+                accQuantity: newAcc,
+                binNum: item.binNum || ""
+              },
+              include: this.inventoryInclude
+            });
+
+            // Create separate transactions if deltas are different
+            if (diffPhy !== 0) {
+              await tx.transactions.create({
+                data: {
+                  createdAt: new Date(),
+                  type: "Physical Inventory Correction",
+                  Quantity: Math.abs(diffPhy),
+                  status: diffPhy > 0 ? "ADD" : "SUB",
+                  color: diffPhy > 0 ? "green" : "red",
+                  Part: { connect: { id: part.id } }
+                }
+              });
+            }
+            if (diffAcc !== 0) {
+              await tx.transactions.create({
+                data: {
+                  createdAt: new Date(),
+                  type: "Accounting Inventory Correction",
+                  Quantity: Math.abs(diffAcc),
+                  status: diffAcc > 0 ? "ADD" : "SUB",
+                  color: diffAcc > 0 ? "green" : "red",
+                  Part: { connect: { id: part.id } }
+                }
+              });
+            }
+
+            items.push(this.formatInventory(updated));
+          } else {
+            const phy = item.phyQuantity ? Math.max(0, parseInt(item.phyQuantity)) : 0;
+            const acc = item.accQuantity ? Math.max(0, parseInt(item.accQuantity)) : 0;
+            
+            const created = await tx.sparesInventory.create({
+              data: {
+                createdAt: new Date(),
+                phyQuantity: phy,
+                accQuantity: acc,
+                binNum: item.binNum || "",
+                partNo: { connect: { id: part.id } },
+                branch: { connect: { id: item.branch } }
+              },
+              include: this.inventoryInclude
+            });
+
+            // Create Transaction for new inventory
+            await tx.transactions.create({
+              data: {
+                createdAt: new Date(),
+                type: "Opening Stock",
+                Quantity: phy,
+                color: "green",
+                Part: { connect: { id: part.id } }
+              }
+            });
+
+            items.push(this.formatInventory(created));
+          }
         }
-      }
+        return items;
+      });
 
       return res.json({
         code: 200,
         response: {
           code: 200,
           message: "Spares Inventory processed",
-          data: results[0] // Legacy returns first one if multiple
+          data: results[0]
         }
       });
     } catch (err) {
@@ -192,18 +319,61 @@ class SparesInventoryController {
       const { id } = req.params;
       const { binNum, minStock, maxStock, reorderLevel, reorderQuantity, phyQuantity, accQuantity } = req.body;
 
-      const updated = await prisma.sparesInventory.update({
-        where: { id },
-        data: {
-          binNum,
-          minStock: parseInt(minStock) || 0,
-          maxStock: parseInt(maxStock) || 0,
-          reorderLevel: parseInt(reorderLevel) || 0,
-          reorderQuantity: parseInt(reorderQuantity) || 0,
-          phyQuantity: parseInt(phyQuantity) || 0,
-          accQuantity: parseInt(accQuantity) || 0
-        },
-        include: this.inventoryInclude
+      const updated = await prisma.$transaction(async (tx) => {
+        const existing = await tx.sparesInventory.findUnique({
+          where: { id }
+        });
+
+        if (!existing) throw new Error("Inventory record not found");
+
+        const oldPhy = existing.phyQuantity || 0;
+        const newPhy = parseInt(phyQuantity);
+        const diffPhy = newPhy - oldPhy;
+
+        const oldAcc = existing.accQuantity || 0;
+        const newAcc = parseInt(accQuantity);
+        const diffAcc = newAcc - oldAcc;
+
+        const result = await tx.sparesInventory.update({
+          where: { id },
+          data: {
+            binNum,
+            minStock: parseInt(minStock) || 0,
+            maxStock: parseInt(maxStock) || 0,
+            reorderLevel: parseInt(reorderLevel) || 0,
+            reorderQuantity: parseInt(reorderQuantity) || 0,
+            phyQuantity: newPhy,
+            accQuantity: newAcc
+          },
+          include: this.inventoryInclude
+        });
+
+        if (diffPhy !== 0) {
+          await tx.transactions.create({
+            data: {
+              createdAt: new Date(),
+              type: "Physical Inventory Correction",
+              Quantity: Math.abs(diffPhy),
+              status: diffPhy > 0 ? "ADD" : "SUB",
+              color: diffPhy > 0 ? "green" : "red",
+              Part: { connect: { id: existing.partId } }
+            }
+          });
+        }
+        if (diffAcc !== 0) {
+          await tx.transactions.create({
+            data: {
+              createdAt: new Date(),
+              type: "Accounting Inventory Correction",
+              Quantity: Math.abs(diffAcc),
+              status: diffAcc > 0 ? "ADD" : "SUB",
+              color: diffAcc > 0 ? "green" : "red",
+              Part: { connect: { id: existing.partId } }
+            }
+          });
+        }
+
+        return result;
       });
 
       return res.json({
@@ -216,7 +386,7 @@ class SparesInventoryController {
       });
     } catch (err) {
       logger.error("Update spares inventory error:", err);
-      return res.json({ code: 500, msg: "An error occured" });
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
     }
   };
 
@@ -396,7 +566,7 @@ class SparesInventoryController {
         }
       };
 
-      const [inventories, count] = await Promise.all([
+      const [inventories, count, allInventory] = await Promise.all([
         prisma.sparesInventory.findMany({
           where,
           take: parsedSize,
@@ -404,15 +574,29 @@ class SparesInventoryController {
           orderBy: { createdAt: 'desc' },
           include: this.inventoryInclude
         }),
-        prisma.sparesInventory.count({ where })
+        prisma.sparesInventory.count({ where }),
+        // Fetch all matching inventory for total cost calculation (legacy behavior)
+        prisma.sparesInventory.findMany({
+          where,
+          include: { partNo: true }
+        })
       ]);
+
+      const total = allInventory.reduce((acc, item) => {
+        const mrp = parseFloat(item.partNo?.mrp) || 0;
+        return acc + (item.phyQuantity * mrp);
+      }, 0);
 
       return res.json({
         code: 200,
         response: {
           code: 200,
           msg: "Spares Inventories  fetched",
-          data: { count, sparesInventory: inventories.map(i => this.formatInventory(i)) }
+          data: { 
+            count, 
+            sparesInventory: inventories.map(i => this.formatInventory(i)),
+            total: Number(total.toFixed(2))
+          }
         }
       });
     } catch (err) {
