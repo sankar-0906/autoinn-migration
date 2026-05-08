@@ -146,6 +146,13 @@ class UserController {
         ...rest,
         profile
       };
+    } else {
+      // Fallback for users without an employee profile to prevent frontend crashes
+      formattedUser.profile = {
+        branch: [],
+        documents: [],
+        department: null
+      };
     }
     return formattedUser;
   };

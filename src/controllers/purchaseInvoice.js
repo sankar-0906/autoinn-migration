@@ -12,16 +12,16 @@ import IdGenerateController from "./idGenerate.js";
 class PurchaseInvoiceController {
   // Shared include object for VehiclePurchaseInvoice
   invoiceInclude = {
-    VehiclePurchaseChallan: {
+    purchaseChallan: {
       include: {
-        Supplier: {
+        supplier: {
           include: {
             address: { include: { district: true, state: true, country: true } },
             contact: true,
             bank: true
           }
         },
-        Branch: {
+        branch: {
           include: {
             address: { include: { district: true, state: true, country: true } },
             contacts: true
@@ -34,9 +34,9 @@ class PurchaseInvoiceController {
                 vehicle: {
                   include: {
                     manufacturer: true,
-                    images: true,
-                    files: true,
-                    Hsn: true
+                    image: true,
+                    file: true,
+                    hsn: true
                   }
                 },
                 color: true
@@ -55,12 +55,14 @@ class PurchaseInvoiceController {
   transformInvoice = (invoice) => {
     if (!invoice) return null;
 
-    const challan = invoice.VehiclePurchaseChallan;
+    const challan = invoice.purchaseChallan;
     const transformedChallan = challan ? {
       ...challan,
-      supplier: challan.Supplier,
-      branch: challan.Branch,
-      vehicleDetail: challan.PurchaseChallanHasVehicleDetails?.map(junction => {
+      supplier: challan.supplier || null,
+      Supplier: challan.supplier || null, 
+      branch: challan.branch || null,
+      Branch: challan.branch || null, 
+      vehicleDetail: (challan.PurchaseChallanHasVehicleDetails || []).map(junction => {
         const detail = junction.PurchasedVehicleDetail;
         return detail ? {
           ...detail,
@@ -69,26 +71,24 @@ class PurchaseInvoiceController {
           vehicle: detail.vehicle ? {
             ...detail.vehicle,
             manufacturer: detail.vehicle.manufacturer,
-            image: detail.vehicle.images, // Frontend often expects 'image' or 'images'
-            file: detail.vehicle.files,
-            hsn: detail.vehicle.Hsn
+            Manufacturer: detail.vehicle.manufacturer, // Alias
+            image: detail.vehicle.image,
+            file: detail.vehicle.file,
+            hsn: detail.vehicle.hsn
           } : null
         } : null;
       }).filter(Boolean) || []
     } : null;
 
-    // Remove the capitalized Prisma keys to avoid confusion
-    if (transformedChallan) {
-      delete transformedChallan.Supplier;
-      delete transformedChallan.Branch;
-      delete transformedChallan.PurchaseChallanHasVehicleDetails;
-    }
-
-    return {
+    const transformed = {
       ...invoice,
       purchaseChallan: transformedChallan,
-      user: invoice.User
+      VehiclePurchaseChallan: transformedChallan, // Capitalized alias for legacy parity
+      user: invoice.User,
+      User: invoice.User // Capitalized alias for legacy parity
     };
+
+    return transformed;
   };
 
   createPurchaseInvoice = async (req, res) => {
@@ -288,21 +288,21 @@ class PurchaseInvoiceController {
 
       const prevInvoice = await prisma.vehiclePurchaseInvoice.findUnique({
         where: { id },
-        include: { 
-          VehiclePurchaseChallan: { 
-            include: { 
+        include: {
+          purchaseChallan: {
+            include: {
               PurchaseChallanHasVehicleDetails: {
                 include: { PurchasedVehicleDetail: true }
-              } 
-            } 
-          } 
+              }
+            }
+          }
         }
       });
 
       if (!prevInvoice) return res.status(404).json({ code: 404, message: "Invoice not found" });
 
       const prevChallanId = prevInvoice.purchaseChallan;
-      const prevDetails = prevInvoice.VehiclePurchaseChallan?.PurchaseChallanHasVehicleDetails.map(junction => junction.PurchasedVehicleDetail) || [];
+      const prevDetails = prevInvoice.purchaseChallan?.PurchaseChallanHasVehicleDetails.map(junction => junction.PurchasedVehicleDetail) || [];
 
       const result = await prisma.$transaction(async (tx) => {
         // Update Challan
@@ -426,19 +426,19 @@ class PurchaseInvoiceController {
         });
       });
 
-        return res.json({
+      return res.json({
+        code: 200,
+        response: {
           code: 200,
-          response: {
-            code: 200,
-            message: "PurchaseInvoice updated",
-            data: this.transformInvoice(result),
-            otherValues: result && typeof result === 'object' ? {
-              ...result,
-              chassisNo: result.chassisNo?.toUpperCase(),
-              engineNo: result.engineNo?.toUpperCase()
-            } : result
-          }
-        });
+          message: "PurchaseInvoice updated",
+          data: this.transformInvoice(result),
+          otherValues: result && typeof result === 'object' ? {
+            ...result,
+            chassisNo: result.chassisNo?.toUpperCase(),
+            engineNo: result.engineNo?.toUpperCase()
+          } : result
+        }
+      });
     } catch (err) {
       logger.error("Update purchase invoice error:", err);
       return res.json({ code: 500, msg: "An error occurred", error: err.message });
@@ -450,19 +450,19 @@ class PurchaseInvoiceController {
       const { id } = req.params;
       const invoice = await prisma.vehiclePurchaseInvoice.findUnique({
         where: { id },
-        include: { 
-          VehiclePurchaseChallan: { 
-            include: { 
-              PurchaseChallanHasVehicleDetails: true 
-            } 
-          } 
+        include: {
+          purchaseChallan: {
+            include: {
+              PurchaseChallanHasVehicleDetails: true
+            }
+          }
         }
       });
 
       if (!invoice) return res.status(404).json({ code: 404, message: "Not found" });
 
       const challanId = invoice.purchaseChallan;
-      const detailIds = invoice.VehiclePurchaseChallan?.PurchaseChallanHasVehicleDetails.map(j => j.B) || [];
+      const detailIds = invoice.purchaseChallan?.PurchaseChallanHasVehicleDetails.map(j => j.B) || [];
 
       const transactions = [
         prisma.vehicleInventory.deleteMany({ where: { vehiclePurchase: id } }),
@@ -489,7 +489,7 @@ class PurchaseInvoiceController {
   getPage = async (req, res) => {
     try {
       const { page = 1, size = 10, searchString, branch } = req.body;
-      
+
       // Priority: branch from body -> branch from token (user.branch)
       let branchIds = [];
       if (branch) {
@@ -505,8 +505,8 @@ class PurchaseInvoiceController {
       const where = {
         OR: [
           { invoiceNo: { contains: inputValue, mode: 'insensitive' } },
-          { VehiclePurchaseChallan: { supplierChallanNo: { contains: inputValue, mode: 'insensitive' } } },
-          { VehiclePurchaseChallan: { Supplier: { name: { contains: inputValue, mode: 'insensitive' } } } }
+          { purchaseChallan: { supplierChallanNo: { contains: inputValue, mode: 'insensitive' } } },
+          { purchaseChallan: { supplier: { name: { contains: inputValue, mode: 'insensitive' } } } }
         ]
       };
 
@@ -562,7 +562,7 @@ class PurchaseInvoiceController {
       const { invoiceNo, supplierId } = req.body;
       const existing = await prisma.vehiclePurchaseInvoice.findFirst({
         where: {
-          VehiclePurchaseChallan: {
+          purchaseChallan: {
             supplierChallanNo: invoiceNo,
             supplier: supplierId
           }
@@ -584,7 +584,7 @@ class PurchaseInvoiceController {
     try {
       const chassisNo = req.body.chassisNo?.toUpperCase();
       const { manufacturer } = req.body;
-      
+
       const [detail, inventory, sold] = await Promise.all([
         prisma.purchasedVehicleDetail.findFirst({ where: { chassisNo } }),
         prisma.vehicleInventory.findFirst({ where: { chassisNo } }),
