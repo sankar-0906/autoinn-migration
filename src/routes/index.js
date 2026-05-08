@@ -56,6 +56,7 @@ import insuranceRoutes from "./insurance.js";
 import pmcRoutes from "./pmc.js";
 import pinelabsRoutes from "./pineLabs.js";
 import adjustSparesInventoryRoutes from "./adjustSparesInventory.js";
+import inventoryTransfersRoutes from "./inventoryTransfers.js";
 
 const router = Router();
 
@@ -120,5 +121,6 @@ router.use("/pmc", pmcRoutes);
 router.use("/pinelabs", pinelabsRoutes);
 router.use("/adjustSparesInventory", adjustSparesInventoryRoutes);
 router.use("/AdjustSparesInventory", adjustSparesInventoryRoutes);
+router.use("/inventoryTransfers", inventoryTransfersRoutes);
 
 export default router;
