@@ -53,6 +53,17 @@ class PurchaseSpareInvoiceController {
       const finalSupplier = supplier || supplierName;
       const finalItemRate = itemRate || itemrate;
       const user = req.user?.id || req.headers["user-id"];
+ 
+      if (!purchaseItemInvoice || !Array.isArray(purchaseItemInvoice) || purchaseItemInvoice.length === 0) {
+        return res.json({
+          code: 400,
+          message: "Select at least one vehicle",
+          response: {
+            code: 400,
+            message: "Select at least one vehicle"
+          }
+        });
+      }
 
       const created = await prisma.purchaseSpareInvoice.create({
         data: {
@@ -128,6 +139,17 @@ class PurchaseSpareInvoiceController {
       } = req.body;
       const finalSupplier = supplier || supplierName;
       const finalItemRate = itemRate || itemrate;
+ 
+      if (!purchaseItemInvoice || !Array.isArray(purchaseItemInvoice) || purchaseItemInvoice.length === 0) {
+        return res.json({
+          code: 400,
+          message: "Select at least one vehicle",
+          response: {
+            code: 400,
+            message: "Select at least one vehicle"
+          }
+        });
+      }
 
       // 1. Delete existing items
       await prisma.purchaseSpareInvoiceItem.deleteMany({
@@ -154,25 +176,31 @@ class PurchaseSpareInvoiceController {
           totalInvoice: parseFloat(totalInvoice) || 0,
           supplierId: finalSupplier,
           PurchaseSpareInvoiceItem: purchaseItemInvoice ? {
-            create: purchaseItemInvoice.map(item => ({
-              partName: item.partName,
-              quantity: parseFloat(item.quantity) || 0,
-              unitRate: parseFloat(item.unitRate) || 0,
-              igst: parseFloat(item.igst) || 0,
-              cgst: parseFloat(item.cgst) || 0,
-              sgst: parseFloat(item.sgst) || 0,
-              gstRate: parseFloat(item.gstRate) || 0,
-              igstAmount: parseFloat(item.igstAmount) || 0,
-              cgstAmount: parseFloat(item.cgstAmount) || 0,
-              sgstAmount: parseFloat(item.sgstAmount) || 0,
-              discountAmount: parseFloat(item.discountAmount) || 0,
-              discountPercent: parseFloat(item.discountPercent) || 0,
-              partNumberId: item.partNumber?.id || item.partNumber,
-              hsnId: item.hsn?.id || item.hsn,
-              branchId: item.branch?.id || item.branch || branch,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }))
+            create: purchaseItemInvoice.map(item => {
+              const partNumberId = item.partNumber?.id || (typeof item.partNumber === 'string' ? item.partNumber : null);
+              const hsnId = item.hsn?.id || (typeof item.hsn === 'string' ? item.hsn : null);
+              const branchId = item.branch?.id || (typeof item.branch === 'string' ? item.branch : (branch || null));
+              
+              return {
+                partName: item.partName,
+                quantity: parseFloat(item.quantity) || 0,
+                unitRate: parseFloat(item.unitRate) || 0,
+                igst: parseFloat(item.igst) || 0,
+                cgst: parseFloat(item.cgst) || 0,
+                sgst: parseFloat(item.sgst) || 0,
+                gstRate: parseFloat(item.gstRate) || 0,
+                igstAmount: parseFloat(item.igstAmount) || 0,
+                cgstAmount: parseFloat(item.cgstAmount) || 0,
+                sgstAmount: parseFloat(item.sgstAmount) || 0,
+                discountAmount: parseFloat(item.discountAmount) || 0,
+                discountPercent: parseFloat(item.discountPercent) || 0,
+                partNumberId,
+                hsnId,
+                branchId,
+                createdAt: new Date(),
+                updatedAt: new Date()
+              };
+            })
           } : undefined
         },
         include: this.invoiceInclude

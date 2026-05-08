@@ -443,20 +443,19 @@ class InventoryTransfersController {
       await prisma.$transaction(async (tx) => {
         const now = new Date();
 
-        // 1. Update location in NumberPlate table (assuming Location field exists as branch ID)
-        // Note: Field name is 'Location' (Capitalized) in legacy SQL
+        // 1. Update location in NumberPlate table
         await tx.numberPlate.updateMany({
           where: { id: { in: id } },
-          data: { Location: toBranch }
+          data: { locationId: toBranch }
         });
 
         // 2. Create transfer records
         const logs = id.map(plateId => ({
           id: nanoid(20),
           createdAt: now,
-          fromBranch: fromBranch,
-          toBranch: toBranch,
-          numberPlate: plateId
+          fromBranchId: fromBranch,
+          toBranchId: toBranch,
+          numberPlateId: plateId
         }));
 
         await tx.numberPlateTransfer.createMany({
@@ -496,9 +495,9 @@ class InventoryTransfersController {
          prisma.numberPlateTransfer.findMany({
            where,
            include: {
-             Branch_NumberPlateTransfer_fromBranchToBranch: true,
-             Branch_NumberPlateTransfer_toBranchToBranch: true,
-             NumberPlate: true
+             fromBranch: true,
+             toBranch: true,
+             numberPlate: true
            },
            take: size,
            skip,
@@ -511,14 +510,14 @@ class InventoryTransfersController {
          id: r.id,
          createdAt: r.createdAt,
          fromBranch: {
-           id: r.Branch_NumberPlateTransfer_fromBranchToBranch?.id,
-           name: r.Branch_NumberPlateTransfer_fromBranchToBranch?.name
+           id: r.fromBranch?.id,
+           name: r.fromBranch?.name
          },
          toBranch: {
-           id: r.Branch_NumberPlateTransfer_toBranchToBranch?.id,
-           name: r.Branch_NumberPlateTransfer_toBranchToBranch?.name
+           id: r.toBranch?.id,
+           name: r.toBranch?.name
          },
-         numberPlate: r.NumberPlate
+         numberPlate: r.numberPlate
        }));
 
        return res.json({ code: 200, count, data: formatted });
