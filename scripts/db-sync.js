@@ -5,6 +5,10 @@ import prisma from '../src/config/prisma.config.js';
  * 
  * This script transforms legacy structure into modern native PostgreSQL format.
  */
+
+// Configuration
+const TARGET_SCHEMA = 'default$default'; // The schema where your new Prisma 7 tables live
+
 async function syncDatabase() {
   const arraysToMigrate = [
     { target: 'Department', column: 'departmentType', source: 'Department_departmentType' },
@@ -50,12 +54,33 @@ async function syncDatabase() {
 
   console.log("------------------- DB SYNC START -------------------");
 
-  // 1. Handle ID Expansions (VARCHAR size increase)
+  /**
+   * Helper to find a table's schema dynamically
+   */
+  async function resolveTable(tableName, preferredSchema = TARGET_SCHEMA) {
+    const results = await prisma.$queryRawUnsafe(`
+      SELECT table_schema 
+      FROM information_schema.tables 
+      WHERE table_name = '${tableName}'
+      ORDER BY CASE WHEN table_schema = '${preferredSchema}' THEN 0 ELSE 1 END
+      LIMIT 1;
+    `);
+    
+    if (results.length > 0) {
+      return `"${results[0].table_schema}"."${tableName}"`;
+    }
+    return null;
+  }
+
+  // 1. Handle ID Expansions
   for (const item of idExpansions) {
     try {
-      console.log(`Expanding ${item.target}.${item.column} to ${item.type}...`);
+      const table = await resolveTable(item.target);
+      if (!table) throw new Error(`Table ${item.target} not found`);
+
+      console.log(`Expanding ${table}.${item.column} to ${item.type}...`);
       await prisma.$executeRawUnsafe(`
-        ALTER TABLE "default$default"."${item.target}" 
+        ALTER TABLE ${table} 
         ALTER COLUMN "${item.column}" TYPE ${item.type};
       `);
       console.log(`✅ Success: Expanded ${item.target}.${item.column}`);
@@ -67,9 +92,12 @@ async function syncDatabase() {
   // 2. Add Missing Columns
   for (const item of columnsToAdd) {
     try {
-      console.log(`Adding column ${item.target}.${item.column} (${item.type})...`);
+      const table = await resolveTable(item.target);
+      if (!table) throw new Error(`Table ${item.target} not found`);
+
+      console.log(`Adding column ${table}.${item.column} (${item.type})...`);
       await prisma.$executeRawUnsafe(`
-        ALTER TABLE "default$default"."${item.target}" 
+        ALTER TABLE ${table} 
         ADD COLUMN IF NOT EXISTS "${item.column}" ${item.type};
       `);
       console.log(`✅ Success: Added ${item.target}.${item.column}`);
@@ -78,20 +106,29 @@ async function syncDatabase() {
     }
   }
 
-  // 3. Migrate Join Table Relations (Many-to-Many join table to One-to-Many column)
+  // 3. Migrate Join Table Relations
   for (const item of joinTableRelations) {
     try {
-      console.log(`Migrating relation ${item.target}.${item.column} from join table ${item.joinTable}...`);
+      const targetTable = await resolveTable(item.target);
+      const joinTable = await resolveTable(item.joinTable, 'public'); // Source usually in public or legacy schema
+
+      if (!targetTable) throw new Error(`Target table ${item.target} not found`);
+      if (!joinTable) {
+        console.warn(`⚠️ Skipping: Join table ${item.joinTable} not found in any schema.`);
+        continue;
+      }
+
+      console.log(`Migrating relation ${item.target}.${item.column} from ${joinTable}...`);
       
       await prisma.$executeRawUnsafe(`
-        ALTER TABLE "default$default"."${item.target}" 
+        ALTER TABLE ${targetTable} 
         ADD COLUMN IF NOT EXISTS "${item.column}" VARCHAR(25);
       `);
 
       await prisma.$executeRawUnsafe(`
-        UPDATE "default$default"."${item.target}" t
+        UPDATE ${targetTable} t
         SET "${item.column}" = j."${item.parentCol}"
-        FROM "default$default"."${item.joinTable}" j
+        FROM ${joinTable} j
         WHERE t.id = j."${item.childCol}";
       `);
       
@@ -104,18 +141,27 @@ async function syncDatabase() {
   // 4. Migrate Arrays
   for (const item of arraysToMigrate) {
     try {
-      console.log(`Migrating array ${item.target}.${item.column} from ${item.source}...`);
+      const targetTable = await resolveTable(item.target);
+      const sourceTable = await resolveTable(item.source, 'public');
+
+      if (!targetTable) throw new Error(`Target table ${item.target} not found`);
+      if (!sourceTable) {
+        console.warn(`⚠️ Skipping: Source table ${item.source} not found in any schema.`);
+        continue;
+      }
+
+      console.log(`Migrating array ${item.target}.${item.column} from ${sourceTable}...`);
       
       await prisma.$executeRawUnsafe(`
-        ALTER TABLE "default$default"."${item.target}" 
+        ALTER TABLE ${targetTable} 
         ADD COLUMN IF NOT EXISTS "${item.column}" text[];
       `);
 
       await prisma.$executeRawUnsafe(`
-        UPDATE "default$default"."${item.target}" t
+        UPDATE ${targetTable} t
         SET "${item.column}" = (
           SELECT array_agg(s.value ORDER BY s.position)
-          FROM "default$default"."${item.source}" s
+          FROM ${sourceTable} s
           WHERE s."nodeId" = t.id
         );
       `);
