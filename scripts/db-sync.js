@@ -22,7 +22,12 @@ async function syncDatabase() {
 
   const columnsToAdd = [
     { target: 'PurchaseSpareInvoice', column: 'createdBy', type: 'VARCHAR(25)' },
-    { target: 'PurchaseSpareInvoice', column: 'branch', type: 'VARCHAR(25)' }
+    { target: 'PurchaseSpareInvoice', column: 'branch', type: 'VARCHAR(25)' },
+    { target: 'VehicleInventory', column: 'createdBy', type: 'VARCHAR(25)' },
+    { target: 'VehicleInventory', column: 'branch', type: 'VARCHAR(25)' },
+    { target: 'VehicleInventory', column: 'color', type: 'VARCHAR(25)' },
+    { target: 'VehicleInventory', column: 'vehicle', type: 'VARCHAR(25)' },
+    { target: 'VehicleInventory', column: 'vehiclePurchase', type: 'VARCHAR(25)' }
   ];
 
   const joinTableRelations = [
