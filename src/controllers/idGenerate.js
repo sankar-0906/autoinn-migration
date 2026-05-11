@@ -579,6 +579,64 @@ class IdGenerateController {
       throw { code: 500, message: "error generating promotions Id", data: err };
     }
   };
+
+  eReceiptIdGenerate = async (branchId) => {
+    try {
+      let record = await prisma.idCreation.findFirst({
+        where: {
+          subModule: "Receipt",
+          branch: branchId || null
+        },
+        orderBy: { createdAt: "desc" }
+      });
+
+      if (!record) {
+        // Try global
+        record = await prisma.idCreation.findFirst({
+          where: { subModule: "Receipt" },
+          orderBy: { createdAt: "desc" }
+        });
+      }
+
+      if (!record) {
+        return {
+          code: 404,
+          message: "ID configuration not found for this branch",
+          data: null,
+        };
+      }
+
+      let { text, count, id } = record;
+      let nextNum = parseInt(count) + 1;
+
+      let padded = nextNum.toLocaleString("en-US", {
+        minimumIntegerDigits: count.length,
+        useGrouping: false,
+      });
+
+      const finalId = text + count; // Use CURRENT count for the ID
+
+      // Update database with next count
+      await prisma.idCreation.update({
+        where: { id: id },
+        data: { count: padded, updatedAt: new Date() }
+      });
+
+      return {
+        code: 200,
+        message: "Generated Successfully",
+        data: finalId
+      };
+
+    } catch (err) {
+      logger.error("Error generating e-receipt ID:", err);
+      throw {
+        code: 500,
+        message: "Error generating ID",
+        err
+      };
+    }
+  };
 }
 
 export default new IdGenerateController();

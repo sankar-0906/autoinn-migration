@@ -15,5 +15,6 @@ router.get("/data/export", controller.exportData);
 router.get("/:id", controller.getOne);
 router.get("/", controller.getAll);
 router.post("/get", controller.getPage);
+router.post("/getJobCodes", controller.getJobCodes);
 
 export default router;

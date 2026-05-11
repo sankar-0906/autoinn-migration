@@ -112,6 +112,64 @@ class UploadController {
       throw error;
     }
   };
+
+  uploadVehicleDocument = async (file, body) => {
+    try {
+      if (!file) return { code: 400, message: "No file uploaded" };
+      const location = `/uploads/${file.filename}`;
+      const vehicleDoc = await prisma.vehicleDocument.create({
+        data: {
+          url: location,
+          type: body.type,
+          vehicle: { connect: { id: body.id } }
+        }
+      });
+      return {
+        code: 200,
+        message: "Vehicle document uploaded successfully",
+        data: vehicleDoc
+      };
+    } catch (err) {
+      logger.error("uploadVehicleDocument error:", err);
+      return { code: 500, message: "Error uploading vehicle document", data: err };
+    }
+  };
+
+  uploadVehicleInsuranceDocument = async (file, body) => {
+    try {
+      if (!file) return { code: 400, message: "No file uploaded" };
+      const location = `/uploads/${file.filename}`;
+      // In legacy, this didn't necessarily create a DB record here, 
+      // but returned the URL for the frontend to save.
+      return {
+        code: 200,
+        message: "Vehicle insurance document uploaded successfully",
+        data: { Location: location }
+      };
+    } catch (err) {
+      logger.error("uploadVehicleInsuranceDocument error:", err);
+      return { code: 500, message: "Error uploading insurance document", data: err };
+    }
+  };
+
+  RemoveFile = async (body) => {
+    try {
+      const { url, delid } = body;
+      if (delid) {
+        await prisma.vehicleDocument.delete({
+          where: { id: delid }
+        });
+      }
+      return {
+        code: 200,
+        message: "File Deleted",
+        data: { url, delid }
+      };
+    } catch (err) {
+      logger.error("RemoveFile error:", err);
+      return { code: 500, message: "Error deleting file", data: err };
+    }
+  };
 }
 
 export default new UploadController();
