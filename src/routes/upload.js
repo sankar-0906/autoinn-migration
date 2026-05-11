@@ -30,6 +30,17 @@ const upload = multer({
 const profileUpload = upload.single("profile");
 const anyUpload = upload.any();
 
+router.post("/", auth, profileUpload, async (req, res) => {
+  try {
+    const file = req.file;
+    const body = req.body;
+    const response = await uploadController.uploadFile(file, body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
 router.post("/image", auth, profileUpload, async (req, res) => {
   try {
     const file = req.file;
@@ -45,6 +56,38 @@ router.post("/file", auth, anyUpload, async (req, res) => {
   try {
     const { files, body } = req;
     const response = await uploadController.UploadFiles(files, body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
+router.post("/vehicle", auth, profileUpload, async (req, res) => {
+  try {
+    const file = req.file;
+    const body = req.body;
+    const response = await uploadController.uploadVehicleDocument(file, body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
+router.post("/vehicleInsurance", auth, profileUpload, async (req, res) => {
+  try {
+    const file = req.file;
+    const body = req.body;
+    const response = await uploadController.uploadVehicleInsuranceDocument(file, body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
+router.post("/deleteFile", auth, async (req, res) => {
+  try {
+    const { body } = req;
+    const response = await uploadController.RemoveFile(body);
     res.json({ code: 200, response });
   } catch (err) {
     res.json({ code: 500, msg: "An error occured", err });

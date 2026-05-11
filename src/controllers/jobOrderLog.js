@@ -9,14 +9,11 @@ import titleCase from "../utils/string.util.js";
 class JobOrderLogController {
   // Shared include object to mirror the legacy fragment
   logInclude = {
-    jobOrder: {
+    JobOrder: {
       include: {
         customer: true,
         vehicle: true
       }
-    },
-    createdBy: {
-      include: { profile: true }
     }
   };
 
@@ -31,18 +28,20 @@ class JobOrderLogController {
           remarks,
           createdAt: new Date(),
           updatedAt: new Date(),
-          jobOrder: { connect: { id: jobOrderId } },
-          createdBy: user ? { connect: { id: user } } : undefined
+          JobOrder: { connect: { id: jobOrderId } }
         },
         include: this.logInclude
       });
+
+      const { JobOrder, ...rest } = created;
+      const formattedLog = { ...rest, jobOrder: JobOrder };
 
       return res.json({
         code: 200,
         response: {
           code: 200,
           message: "Job order log created",
-          data: created
+          data: formattedLog
         }
       });
     } catch (err) {
@@ -55,22 +54,38 @@ class JobOrderLogController {
     try {
       const { id } = req.params; // jobOrderId
       const logs = await prisma.jobOrderLog.findMany({
-        where: { jobOrderId: id },
+        where: { jobOrder: id },
         orderBy: { createdAt: 'desc' },
         include: this.logInclude
       });
+
+      // Parity: Fetch TeleCMICallHistory bucketURL and map JobOrder to jobOrder
+      const formattedLogs = logs.map(log => {
+        const { JobOrder, ...rest } = log;
+        return { ...rest, jobOrder: JobOrder };
+      });
+
+      for (let i = 0; i < formattedLogs.length; i++) {
+        const callHistory = await prisma.teleCMICallHistory.findFirst({
+          where: { activityId: formattedLogs[i].id },
+          select: { bucketURL: true }
+        });
+        if (callHistory && callHistory.bucketURL) {
+          formattedLogs[i].data = callHistory.bucketURL;
+        }
+      }
 
       return res.json({
         code: 200,
         response: {
           code: 200,
           message: "jobOrderLogs fetched",
-          data: logs
+          data: formattedLogs
         }
       });
     } catch (err) {
       logger.error("Get logs error:", err);
-      return res.json({ code: 500, msg: "an error occurred" });
+      return res.json({ code: 500, response: { code: 500, message: "an error occurred" } });
     }
   };
 
@@ -84,9 +99,9 @@ class JobOrderLogController {
       const where = {
         OR: [
           { event: { contains: inputValue, mode: 'insensitive' } },
-          { jobOrder: { jobNo: { contains: inputValue, mode: 'insensitive' } } },
-          { jobOrder: { customer: { name: { contains: inputValue, mode: 'insensitive' } } } },
-          { jobOrder: { customer: { name: { contains: tCased, mode: 'insensitive' } } } }
+          { JobOrder: { jobNo: { contains: inputValue, mode: 'insensitive' } } },
+          { JobOrder: { customer: { name: { contains: inputValue, mode: 'insensitive' } } } },
+          { JobOrder: { customer: { name: { contains: tCased, mode: 'insensitive' } } } }
         ]
       };
 
@@ -101,12 +116,18 @@ class JobOrderLogController {
         prisma.jobOrderLog.count({ where })
       ]);
 
+      // Map JobOrder to jobOrder for each log
+      const formattedLogs = logs.map(log => {
+        const { JobOrder, ...rest } = log;
+        return { ...rest, jobOrder: JobOrder };
+      });
+
       return res.json({
         code: 200,
         response: {
           code: 200,
-          msg: "JobOrderLogs fetched",
-          data: { count, JobOrderLog: logs } // Note: Key name matches legacy
+          message: "JobOrderLogs fetched",
+          data: { count, JobOrderLog: formattedLogs } // Note: Key name matches legacy
         }
       });
     } catch (err) {

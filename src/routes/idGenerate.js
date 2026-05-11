@@ -148,4 +148,14 @@ router.post("/promotions", async (req, res) => {
   }
 });
 
+router.post("/e-receipt", async (req, res) => {
+  try {
+    const { branch } = req.body;
+    const response = await IdGenerateController.eReceiptIdGenerate(branch);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
 export default router;

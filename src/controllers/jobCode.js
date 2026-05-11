@@ -315,6 +315,33 @@ class JobCodeController {
       return res.status(500).json({ code: 500, message: "Server error" });
     }
   };
+
+  getJobCodes = async (req, res) => {
+    try {
+      const { page, size } = req.body;
+      const skip = (parseInt(page) - 1) * parseInt(size || 10);
+      const take = parseInt(size || 10);
+
+      const jobCodes = await prisma.jobCode.findMany({
+        take,
+        skip,
+        orderBy: { createdAt: 'desc' },
+        include: this.jobCodeInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "JobCodes fetched",
+          data: jobCodes.map(j => this.formatJobCode(j))
+        }
+      });
+    } catch (err) {
+      logger.error("Get job codes list error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
 }
 
 export default new JobCodeController();

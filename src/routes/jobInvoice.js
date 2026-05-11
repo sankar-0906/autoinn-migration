@@ -9,6 +9,7 @@ router.use(auth);
 
 router.post("/", controller.createJobInvoice);
 router.get("/:id", controller.getOne);
+router.get("/getJob/:id", controller.getJob);
 router.post("/get", controller.getPage);
 
 export default router;

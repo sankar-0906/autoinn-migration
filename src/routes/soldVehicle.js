@@ -13,6 +13,10 @@ router.get("/", controller.getAll);
 router.post("/get", controller.getPage);
 
 // Missing parity routes
+router.post("/getSome", controller.getSome);
+router.post("/getNumberVehicle", controller.getSelectNumber);
+router.post("/getVehicle", controller.getSelectVehicle);
+router.post("/getChassis", controller.getSelectChassis);
 router.post("/getCustomer", controller.getCustomer);
 router.post("/customerVehicle", controller.getCustomerVehicle);
 router.post("/checkRegisterNo", controller.getDuplicateRegister);

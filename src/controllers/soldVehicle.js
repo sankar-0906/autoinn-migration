@@ -34,8 +34,12 @@ class SoldVehicleController {
       id: c.id,
       customer: c
     }));
-
-    const insurance = (VehicleInsurance && VehicleInsurance.length > 0) ? VehicleInsurance[0] : null;
+    
+    const insurance = (VehicleInsurance || []).map(vi => ({
+      ...vi,
+      insurance: vi.insurance,
+      file: vi.file
+    }));
 
     let formattedVehicleMaster = vehicleMaster;
     if (vehicleMaster) {
@@ -174,8 +178,9 @@ class SoldVehicleController {
   getCustomer = async (req, res) => {
     try {
       const { customer } = req.body;
+      const customerIds = Array.isArray(customer) ? customer : [customer];
       const customers = await prisma.customer.findMany({
-        where: { id: { in: customer } },
+        where: { id: { in: customerIds } },
         include: { CustomerPhone: true }
       });
       return res.json({
@@ -198,9 +203,10 @@ class SoldVehicleController {
   getCustomerVehicle = async (req, res) => {
     try {
         const { customer } = req.body;
+        const customerIds = Array.isArray(customer) ? customer : [customer];
         const vehicles = await prisma.vehicle.findMany({
             where: {
-                Customer: { some: { id: { in: customer } } }
+                Customer: { some: { id: { in: customerIds } } }
             },
             include: this.soldInclude
         });
@@ -264,6 +270,137 @@ class SoldVehicleController {
       });
       return res.json({ code: 200, response: { code: 200, msg: "Battery number saved" } });
     } catch (err) {
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
+  getSome = async (req, res) => {
+    try {
+      const { page = 1, size = 10 } = req.body;
+      const branchIds = req.user?.branch || [];
+      const skip = (parseInt(page) - 1) * parseInt(size);
+
+      const branches = await prisma.branch.findMany({
+        where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        include: { manufacturer: true }
+      });
+
+      const manufacturerIds = [...new Set(branches.flatMap(b => (b.manufacturer || []).map(m => m.id)))];
+
+      const vehicles = await prisma.vehicle.findMany({
+        where: {
+          vehicleMaster: {
+            manufacturerId: { in: manufacturerIds }
+          }
+        },
+        take: parseInt(size),
+        skip,
+        orderBy: { createdAt: 'desc' },
+        include: this.soldInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "vehicles fetched",
+          data: vehicles.map(v => this.formatVehicle(v))
+        }
+      });
+    } catch (err) {
+      logger.error("Get some vehicles error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
+  getSelectVehicle = async (req, res) => {
+    try {
+      const { vehicle: vehicleNo } = req.body;
+      const vehicle = await prisma.vehicle.findFirst({
+        where: {
+          OR: [
+            { id: vehicleNo },
+            { registerNo: { contains: vehicleNo, mode: 'insensitive' } }
+          ]
+        },
+        include: this.soldInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Vehicles fetched",
+          data: this.formatVehicle(vehicle)
+        }
+      });
+    } catch (err) {
+      logger.error("Get select vehicle error:", err);
+      return res.json({ code: 500, msg: "error Getting Vehicles" });
+    }
+  };
+
+  getSelectChassis = async (req, res) => {
+    try {
+      const { vehicle: vehicleNo } = req.body;
+      const branchIds = req.user?.branch || [];
+      
+      const branches = await prisma.branch.findMany({
+        where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        include: { manufacturer: true }
+      });
+
+      const manufacturerIds = [...new Set(branches.flatMap(b => (b.manufacturer || []).map(m => m.id)))];
+
+      const vehicle = await prisma.vehicle.findFirst({
+        where: {
+          vehicleMaster: {
+            manufacturerId: { in: manufacturerIds }
+          },
+          OR: [
+            { id: vehicleNo },
+            { chassisNo: { contains: vehicleNo, mode: 'insensitive' } }
+          ]
+        },
+        include: this.soldInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Vehicles/Chassis fetched",
+          data: this.formatVehicle(vehicle)
+        }
+      });
+    } catch (err) {
+      logger.error("Get select chassis error:", err);
+      return res.json({ code: 500, msg: "error Getting Vehicles" });
+    }
+  };
+
+  getSelectNumber = async (req, res) => {
+    try {
+      const { mobileNo } = req.body;
+      const vehicles = await prisma.vehicle.findMany({
+        where: {
+          Customer: {
+            some: { id: mobileNo }
+          }
+        },
+        include: this.soldInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Vehicles fetched",
+          data: vehicles.map(v => this.formatVehicle(v))
+        }
+      });
+    } catch (err) {
+      logger.error("Get select number error:", err);
       return res.json({ code: 500, msg: "An error occurred" });
     }
   };

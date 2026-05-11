@@ -11,24 +11,20 @@ import IdGenerateController from "./idGenerate.js";
 class JobInvoiceController {
   // Shared include object for JobInvoice
   invoiceInclude = {
-    jobOrder: {
+    JobOrder: {
       include: {
         customer: true,
-        vehicle: { include: { vehicle: true } },
+        vehicle: { include: { vehicleMaster: true } },
         branch: true
       }
     },
-    saleSpareInvoice: {
+    parts: {
       include: {
-        partNumber: true,
-        hsn: true,
-        branch: true
-      }
-    },
-    saleJobInvoice: {
-      include: {
-        jobCode: true,
-        sac: true
+        MaterialPartsIssue: {
+          include: {
+            part: true
+          }
+        }
       }
     }
   };
@@ -45,61 +41,11 @@ class JobInvoiceController {
 
       const created = await prisma.jobInvoice.create({
         data: {
-          invoiceNumber,
-          invoiceDate: invoiceDate ? new Date(invoiceDate) : new Date(),
-          itemRate: parseFloat(itemRate) || 0,
-          discountType,
-          discountPercent: parseFloat(discountPercent) || 0,
-          discountRate: parseFloat(discountRate) || 0,
-          tcs: parseFloat(tcs) || 0,
-          cgst: parseFloat(cgst) || 0,
-          sgst: parseFloat(sgst) || 0,
-          igst: parseFloat(igst) || 0,
-          totalDiscount: parseFloat(totalDiscount) || 0,
-          adjustment: parseFloat(adjustment) || 0,
-          totalInvoice: parseFloat(totalInvoice) || 0,
+          invoiceNo: invoiceNumber,
           createdAt: new Date(),
           updatedAt: new Date(),
-          jobOrder: jobOrder ? { connect: { id: jobOrder } } : undefined,
-          createdBy: user ? { connect: { id: user } } : undefined,
-          saleSpareInvoice: saleSpareInvoice && saleSpareInvoice.length > 0 ? {
-            create: saleSpareInvoice.map(item => ({
-              partNumber: { connect: { id: item.partNumber } },
-              partName: item.partName,
-              quantity: parseFloat(item.quantity) || 0,
-              unitRate: parseFloat(item.unitRate) || 0,
-              gstRate: parseFloat(item.gstRate) || 0,
-              igst: parseFloat(item.igst) || 0,
-              cgst: parseFloat(item.cgst) || 0,
-              sgst: parseFloat(item.sgst) || 0,
-              igstAmount: parseFloat(item.igstAmount) || 0,
-              cgstAmount: parseFloat(item.cgstAmount) || 0,
-              sgstAmount: parseFloat(item.sgstAmount) || 0,
-              discountAmount: parseFloat(item.discountAmount) || 0,
-              hsn: item.hsn ? { connect: { id: item.hsn } } : undefined,
-              branch: item.branch ? { connect: { id: item.branch } } : undefined,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }))
-          } : undefined,
-          saleJobInvoice: saleJobInvoice && saleJobInvoice.length > 0 ? {
-            create: saleJobInvoice.map(job => ({
-              jobCode: { connect: { id: job.jobCode } },
-              jobDescription: job.jobDescription,
-              labourRate: parseFloat(job.labourRate) || 0,
-              gstRate: parseFloat(job.gstRate) || 0,
-              igst: parseFloat(job.igst) || 0,
-              cgst: parseFloat(job.cgst) || 0,
-              sgst: parseFloat(job.sgst) || 0,
-              igstAmount: parseFloat(job.igstAmount) || 0,
-              cgstAmount: parseFloat(job.cgstAmount) || 0,
-              sgstAmount: parseFloat(job.sgstAmount) || 0,
-              discountAmount: parseFloat(job.discountAmount) || 0,
-              sac: job.sac ? { connect: { id: job.sac } } : undefined,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }))
-          } : undefined
+          JobOrder: jobOrder ? { connect: { id: jobOrder } } : undefined,
+          User: user ? { connect: { id: user } } : undefined,
         },
         include: this.invoiceInclude
       });
@@ -114,11 +60,15 @@ class JobInvoiceController {
 
       return res.json({
         code: 200,
-        response: created
+        response: {
+          code: 200,
+          message: "Job invoice created successfully",
+          data: created
+        }
       });
     } catch (err) {
       logger.error("Create job invoice error:", err);
-      return res.json({ code: 500, msg: "An error occured", err });
+      return res.json({ code: 500, response: { code: 500, message: "An error occured", data: err } });
     }
   };
 
@@ -133,13 +83,24 @@ class JobInvoiceController {
       if (invoice) {
         return res.json({
           code: 200,
-          response: invoice
+          response: {
+            code: 200,
+            message: "job invoice fetched",
+            data: invoice
+          }
         });
       }
-      return res.status(404).json({ code: 404, message: "Not found" });
+      return res.json({
+        code: 404,
+        response: {
+          code: 404,
+          message: "Not found",
+          data: null
+        }
+      });
     } catch (err) {
       logger.error("Get one job invoice error:", err);
-      return res.json({ code: 500, message: "Server error" });
+      return res.json({ code: 500, response: { code: 500, message: "Server error" } });
     }
   };
 
@@ -151,9 +112,9 @@ class JobInvoiceController {
 
       const where = {
         OR: [
-          { invoiceNumber: { contains: inputValue, mode: 'insensitive' } },
-          { jobOrder: { jobNo: { contains: inputValue, mode: 'insensitive' } } },
-          { jobOrder: { customerPhone: { contains: inputValue, mode: 'insensitive' } } }
+          { invoiceNo: { contains: inputValue, mode: 'insensitive' } },
+          { JobOrder: { jobNo: { contains: inputValue, mode: 'insensitive' } } },
+          { JobOrder: { customerPhone: { contains: inputValue, mode: 'insensitive' } } }
         ]
       };
 
@@ -170,11 +131,51 @@ class JobInvoiceController {
 
       return res.json({
         code: 200,
-        response: { count, jobInvoice: invoices }
+        response: {
+          code: 200,
+          message: "JobInvoices fetched",
+          data: { count, jobInvoice: invoices }
+        }
       });
     } catch (err) {
       logger.error("Get job invoice page error:", err);
-      return res.json({ code: 500, msg: "an error occurred" });
+      return res.json({ code: 500, response: { code: 500, message: "an error occurred" } });
+    }
+  };
+
+  getJob = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const invoices = await prisma.jobInvoice.findMany({
+        where: {
+          JobOrder: { id }
+        },
+        include: this.invoiceInclude,
+        orderBy: { createdAt: 'asc' }
+      });
+
+      if (invoices && invoices.length > 0) {
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            message: "job invoice fetched",
+            data: invoices[invoices.length - 1]
+          }
+        });
+      }
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "No invoice found for this job order",
+          data: null
+        }
+      });
+    } catch (err) {
+      logger.error("Get job invoice by job ID error:", err);
+      return res.json({ code: 500, response: { code: 500, message: "Server error" } });
     }
   };
 }

@@ -11,10 +11,15 @@ router.post("/", controller.createJobOrder);
 router.get("/vehicleHistory/:id", controller.historyVehicleJobs);
 router.get("/:id", controller.getOne);
 router.post("/get", controller.getPage);
+router.post("/getJobNo", controller.getJobNo);
 router.post("/dashboard", controller.getDashboardData);
 router.post("/setStatus", controller.setStatus);
+router.put("/setMech/:id", controller.updateMechanic);
+router.put("/:id", controller.updateJobOrder);
+router.delete("/:id", controller.deleteJobOrder);
 
 // Missing parity routes
+router.post("/history", controller.historyJobOrder);
 router.post("/vehicleHistory", controller.vehicleJobOrder);
 
 export default router;
