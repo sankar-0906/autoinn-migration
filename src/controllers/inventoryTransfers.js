@@ -294,21 +294,36 @@ class InventoryTransfersController {
    */
   getVehicleTransferRecords = async (req, res) => {
     try {
-      const { fromBranch, toBranch, startDate, endDate, searchString = "", page = 1, size = 10 } = req.body;
+      const { fromBranch, toBranch, startDate, endDate, searchString = "", page = 1, size = 10, branch } = req.body;
       const skip = (page - 1) * size;
 
+      let branchIds = [];
+      if (branch) {
+        branchIds = Array.isArray(branch) ? branch : [branch];
+      }
+
       const where = {
-        fromBranch: fromBranch || undefined,
-        toBranch: toBranch || undefined,
-        createdAt: (startDate || endDate) ? {
-          gte: startDate ? new Date(startDate) : undefined,
-          lte: endDate ? new Date(endDate) : undefined
-        } : undefined,
-        OR: searchString ? [
-          { modelName: { contains: searchString, mode: 'insensitive' } },
-          { modelCode: { contains: searchString, mode: 'insensitive' } },
-          { chassisNo: { contains: searchString, mode: 'insensitive' } }
-        ] : undefined
+        AND: [
+          branchIds.length > 0 ? {
+            OR: [
+              { fromBranch: { in: branchIds } },
+              { toBranch: { in: branchIds } }
+            ]
+          } : {},
+          {
+            fromBranch: fromBranch || undefined,
+            toBranch: toBranch || undefined,
+            createdAt: (startDate || endDate) ? {
+              gte: startDate ? new Date(startDate) : undefined,
+              lte: endDate ? new Date(endDate) : undefined
+            } : undefined,
+            OR: searchString ? [
+              { modelName: { contains: searchString, mode: 'insensitive' } },
+              { modelCode: { contains: searchString, mode: 'insensitive' } },
+              { chassisNo: { contains: searchString, mode: 'insensitive' } }
+            ] : undefined
+          }
+        ]
       };
 
       const [records, count] = await Promise.all([
@@ -371,24 +386,39 @@ class InventoryTransfersController {
    */
   getSpareTransferRecords = async (req, res) => {
     try {
-      const { fromBranch, toBranch, startDate, endDate, searchString = "", page = 1, size = 10 } = req.body;
+      const { fromBranch, toBranch, startDate, endDate, searchString = "", page = 1, size = 10, branch } = req.body;
       const skip = (page - 1) * size;
 
+      let branchIds = [];
+      if (branch) {
+        branchIds = Array.isArray(branch) ? branch : [branch];
+      }
+
       const where = {
-        fromBranch: fromBranch || undefined,
-        toBranch: toBranch || undefined,
-        createdAt: (startDate || endDate) ? {
-          gte: startDate ? new Date(startDate) : undefined,
-          lte: endDate ? new Date(endDate) : undefined
-        } : undefined,
-        SparesInventory: searchString ? {
-          partNo: {
+        AND: [
+          branchIds.length > 0 ? {
             OR: [
-              { partName: { contains: searchString, mode: 'insensitive' } },
-              { partNumber: { contains: searchString, mode: 'insensitive' } }
+              { fromBranch: { in: branchIds } },
+              { toBranch: { in: branchIds } }
             ]
+          } : {},
+          {
+            fromBranch: fromBranch || undefined,
+            toBranch: toBranch || undefined,
+            createdAt: (startDate || endDate) ? {
+              gte: startDate ? new Date(startDate) : undefined,
+              lte: endDate ? new Date(endDate) : undefined
+            } : undefined,
+            SparesInventory: searchString ? {
+              partNo: {
+                OR: [
+                  { partName: { contains: searchString, mode: 'insensitive' } },
+                  { partNumber: { contains: searchString, mode: 'insensitive' } }
+                ]
+              }
+            } : undefined
           }
-        } : undefined
+        ]
       };
 
       const [records, count] = await Promise.all([
@@ -472,23 +502,38 @@ class InventoryTransfersController {
 
   getNumberPlateTransferRecords = async (req, res) => {
      try {
-       const { fromBranch, toBranch, startDate, endDate, searchString = "", page = 1, size = 10 } = req.body;
+       const { fromBranch, toBranch, startDate, endDate, searchString = "", page = 1, size = 10, branch } = req.body;
        const skip = (page - 1) * size;
 
+       let branchIds = [];
+       if (branch) {
+         branchIds = Array.isArray(branch) ? branch : [branch];
+       }
+
        const where = {
-         fromBranch: fromBranch || undefined,
-         toBranch: toBranch || undefined,
-         createdAt: (startDate || endDate) ? {
-           gte: startDate ? new Date(startDate) : undefined,
-           lte: endDate ? new Date(endDate) : undefined
-         } : undefined,
-         NumberPlate: searchString ? {
-           OR: [
-             { registerNo: { contains: searchString, mode: 'insensitive' } },
-             { chassisNo: { contains: searchString, mode: 'insensitive' } },
-             { modelName: { contains: searchString, mode: 'insensitive' } }
-           ]
-         } : undefined
+         AND: [
+           branchIds.length > 0 ? {
+             OR: [
+               { fromBranchId: { in: branchIds } },
+               { toBranchId: { in: branchIds } }
+             ]
+           } : {},
+           {
+             fromBranchId: fromBranch || undefined,
+             toBranchId: toBranch || undefined,
+             createdAt: (startDate || endDate) ? {
+               gte: startDate ? new Date(startDate) : undefined,
+               lte: endDate ? new Date(endDate) : undefined
+             } : undefined,
+             numberPlate: searchString ? {
+               OR: [
+                 { registerNo: { contains: searchString, mode: 'insensitive' } },
+                 { chassisNo: { contains: searchString, mode: 'insensitive' } },
+                 { modelName: { contains: searchString, mode: 'insensitive' } }
+               ]
+             } : undefined
+           }
+         ]
        };
 
        const [records, count] = await Promise.all([

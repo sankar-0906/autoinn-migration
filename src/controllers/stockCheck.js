@@ -1,5 +1,6 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 /**
  * Controller for Stock Check (Inventory audits).
@@ -7,12 +8,17 @@ import logger from "../config/logger.config.js";
 class StockCheckController {
   getPage = async (req, res) => {
     try {
-      const { page = 1, size = 10 } = req.body;
+      const { page = 1, size = 10, branch } = req.body;
       const skip = (parseInt(page) - 1) * parseInt(size);
       const take = parseInt(size);
 
+      const branchIds = normalizeBranchIds(branch);
+
+      const where = branchIds.length > 0 ? { branchId: { in: branchIds } } : {};
+
       const [stockChecks, count] = await Promise.all([
         prisma.stockCheck.findMany({
+          where,
           skip,
           take,
           include: {
@@ -22,7 +28,7 @@ class StockCheckController {
           },
           orderBy: { createdAt: 'desc' }
         }),
-        prisma.stockCheck.count()
+        prisma.stockCheck.count({ where })
       ]);
 
       return res.json({

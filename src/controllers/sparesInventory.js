@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 /**
  * Controller for Spares Inventory operations.
@@ -53,7 +54,8 @@ class SparesInventoryController {
               }
             }
           }
-        }
+        },
+        branch: true
       }
     },
     sparesSale: {
@@ -109,7 +111,8 @@ class SparesInventoryController {
           }
         }
       }
-    }
+    },
+    branch: true
   };
 
   /**
@@ -210,14 +213,32 @@ class SparesInventoryController {
       
       console.log("Add Spares Inventory Data", req.body);
       
+      let partId = part.id;
+      if (!partId && part.partNumber) {
+        const foundPart = await prisma.partsMaster.findFirst({
+          where: { partNumber: part.partNumber }
+        });
+        if (foundPart) partId = foundPart.id;
+      }
+
+      if (!partId) {
+        return res.json({
+          code: 400,
+          message: "Part not found. Please create the part in Parts Master first.",
+          response: {
+            code: 400,
+            message: "Part not found."
+          }
+        });
+      }
+
       const results = await prisma.$transaction(async (tx) => {
         let items = [];
         for (const item of branch) {
-          // Legacy logic: upsert by branch and part
           const existing = await tx.sparesInventory.findFirst({
             where: {
               branchId: item.branch,
-              partId: part.id
+              partId: partId
             }
           });
 
@@ -249,7 +270,8 @@ class SparesInventoryController {
                   Quantity: Math.abs(diffPhy),
                   status: diffPhy > 0 ? "ADD" : "SUB",
                   color: diffPhy > 0 ? "green" : "red",
-                  Part: { connect: { id: part.id } }
+                  branch: { connect: { id: item.branch } },
+                  Part: { connect: { id: partId } }
                 }
               });
             }
@@ -261,7 +283,8 @@ class SparesInventoryController {
                   Quantity: Math.abs(diffAcc),
                   status: diffAcc > 0 ? "ADD" : "SUB",
                   color: diffAcc > 0 ? "green" : "red",
-                  Part: { connect: { id: part.id } }
+                  branch: { connect: { id: item.branch } },
+                  Part: { connect: { id: partId } }
                 }
               });
             }
@@ -277,7 +300,7 @@ class SparesInventoryController {
                 phyQuantity: phy,
                 accQuantity: acc,
                 binNum: item.binNum || "",
-                partNo: { connect: { id: part.id } },
+                partNo: { connect: { id: partId } },
                 branch: { connect: { id: item.branch } }
               },
               include: this.inventoryInclude
@@ -290,7 +313,8 @@ class SparesInventoryController {
                 type: "Opening Stock",
                 Quantity: phy,
                 color: "green",
-                Part: { connect: { id: part.id } }
+                branch: { connect: { id: item.branch } },
+                Part: { connect: { id: partId } }
               }
             });
 
@@ -356,6 +380,7 @@ class SparesInventoryController {
               Quantity: Math.abs(diffPhy),
               status: diffPhy > 0 ? "ADD" : "SUB",
               color: diffPhy > 0 ? "green" : "red",
+              branch: { connect: { id: existing.branchId } },
               Part: { connect: { id: existing.partId } }
             }
           });
@@ -368,6 +393,7 @@ class SparesInventoryController {
               Quantity: Math.abs(diffAcc),
               status: diffAcc > 0 ? "ADD" : "SUB",
               color: diffAcc > 0 ? "green" : "red",
+              branch: { connect: { id: existing.branchId } },
               Part: { connect: { id: existing.partId } }
             }
           });
@@ -547,8 +573,8 @@ class SparesInventoryController {
 
   getPage = async (req, res) => {
     try {
-      const { page, size, searchString } = req.body;
-      const branchIds = req.user?.branch || [];
+      const { page, size, searchString, branch } = req.body;
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
       const parsedPage = parseInt(page) || 1;
       const parsedSize = parseInt(size) || 10;
       const skip = (parsedPage - 1) * parsedSize;
@@ -608,8 +634,7 @@ class SparesInventoryController {
   getByBranch = async (req, res) => {
     try {
       const { page, size, searchString, branch } = req.body;
-      const userBranch = branch || req.user?.branch || [];
-      const branchIds = Array.isArray(userBranch) ? userBranch : [userBranch];
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
       const parsedPage = parseInt(page) || 1;
       const parsedSize = parseInt(size) || 10;
       const skip = (parsedPage - 1) * parsedSize;

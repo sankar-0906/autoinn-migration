@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 import IdGenerateController from "./idGenerate.js";
 
@@ -73,7 +74,7 @@ class PurchaseSpareInvoiceController {
             invoiceDate: invoiceDate ? new Date(invoiceDate) : undefined,
             currentDate: new Date(),
             itemRate: finalItemRate,
-            status: "True",
+            branch: branch ? { connect: { id: branch } } : undefined,
             discountType,
             discountPercent: parseFloat(discountPercent) || 0,
             discountRate: parseFloat(discountRate) || 0,
@@ -128,6 +129,7 @@ class PurchaseSpareInvoiceController {
               type: "Purchase Spare Invoice",
               Quantity: parseInt(qty),
               Part: { connect: { id: partId } },
+              branch: { connect: { id: branchId } },
               sparesPurchase: { connect: { id: created.id } }
             }
           });
@@ -174,6 +176,16 @@ class PurchaseSpareInvoiceController {
       });
     } catch (err) {
       logger.error("Create purchase spare invoice error:", err);
+      if (err.code === "P2002") {
+        return res.json({ 
+          code: 400, 
+          message: "Invoice Number already exists for this supplier or globally.",
+          response: {
+            code: 400,
+            message: "Invoice Number already exists. Please use a unique number."
+          }
+        });
+      }
       return res.json({ code: 500, msg: "an error occurred", error: err.message });
     }
   };
@@ -245,6 +257,7 @@ class PurchaseSpareInvoiceController {
             adjustment: parseFloat(adjustment) || 0,
             totalInvoice: parseFloat(totalInvoice) || 0,
             supplierId: finalSupplier,
+            branchId: branch,
             PurchaseSpareInvoiceItem: {
               create: purchaseItemInvoice.map(item => {
                 const partNumberId = item.partNumber?.id || (typeof item.partNumber === 'string' ? item.partNumber : null);
@@ -288,9 +301,10 @@ class PurchaseSpareInvoiceController {
           await tx.transactions.create({
             data: {
               createdAt: new Date(),
-              type: "Purchase Spare Invoice",
+              type: "Purchase Spare Invoice (Updated)",
               Quantity: parseInt(qty),
               Part: { connect: { id: partId } },
+              branch: { connect: { id: branchId } },
               sparesPurchase: { connect: { id: updated.id } }
             }
           });
@@ -408,22 +422,25 @@ class PurchaseSpareInvoiceController {
 
   getPage = async (req, res) => {
     try {
-      const { page, size, searchString } = req.body;
-      const skip = (page - 1) * size;
+      const { page, size, searchString, branch } = req.body;
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
+      const skip = (parseInt(page) - 1) * parseInt(size);
       const inputValue = searchString || "";
 
       const where = {
+        branchId: branchIds.length > 0 ? { in: branchIds } : undefined,
         OR: [
           { invoiceNumber: { contains: inputValue, mode: 'insensitive' } },
-          { supplier: { name: { contains: inputValue, mode: 'insensitive' } } }
+          { supplier: { name: { contains: inputValue, mode: 'insensitive' } } },
+          { psiNo: { contains: inputValue, mode: 'insensitive' } }
         ]
       };
 
       const [invoices, count] = await Promise.all([
         prisma.purchaseSpareInvoice.findMany({
           where,
-          take: size,
-          skip,
+          take: parseInt(size) || 10,
+          skip: isNaN(skip) ? 0 : skip,
           orderBy: { createdAt: 'desc' },
           include: this.invoiceInclude
         }),

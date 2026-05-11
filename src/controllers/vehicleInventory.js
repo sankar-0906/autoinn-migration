@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 import VehicleMasterController from "./vehicleMaster.js";
 
 /**
@@ -276,23 +277,49 @@ class VehicleInventoryController {
 
       const count = rows.length > 0 ? Number(rows[0].total_count) : 0;
 
-      // Compute total cost from latest price per vehicle
-      const vehicleIds = [...new Set(rows.map(r => r.vehicle_id).filter(Boolean))];
-      let totalCostMap = {};
-      if (vehicleIds.length > 0) {
+      // Compute overall total cost across ALL matching records (not just the current page)
+      let overallTotalRows = [];
+      if (searchString) {
+        overallTotalRows = await prisma.$queryRaw`
+          SELECT vi.vehicle as vehicle_id, COUNT(*)::int as quantity
+          FROM "VehicleInventory" vi
+          LEFT JOIN "VehicleMaster" v ON vi.vehicle = v.id
+          LEFT JOIN "Image" c ON vi.color = c.id
+          WHERE vi.branch = ANY(${branchIds})
+            AND (v."modelName" ILIKE ${searchTerm} OR v."modelCode" ILIKE ${searchTerm}
+              OR v.category ILIKE ${searchTerm} OR c.color ILIKE ${searchTerm}
+              OR c.code ILIKE ${searchTerm} OR vi."chassisNo" ILIKE ${searchTerm})
+          GROUP BY vi.vehicle
+        `;
+      } else {
+        overallTotalRows = await prisma.$queryRaw`
+          SELECT vehicle as vehicle_id, COUNT(*)::int as quantity
+          FROM "VehicleInventory"
+          WHERE branch = ANY(${branchIds})
+          GROUP BY vehicle
+        `;
+      }
+
+      const allVehicleIds = [...new Set(overallTotalRows.map(r => r.vehicle_id).filter(Boolean))];
+      let overallTotalCostMap = {};
+      if (allVehicleIds.length > 0) {
         const prices = await prisma.vehiclePrice.findMany({
-          where: { vehicleModelId: { in: vehicleIds } },
+          where: { vehicleModelId: { in: allVehicleIds } },
           orderBy: { priceValidFrom: 'desc' }
         });
         for (const p of prices) {
-          if (!totalCostMap[p.vehicleModelId]) {
-            totalCostMap[p.vehicleModelId] = p.showroomPrice || 0;
+          if (!overallTotalCostMap[p.vehicleModelId]) {
+            overallTotalCostMap[p.vehicleModelId] = p.showroomPrice || 0;
           }
         }
       }
 
+      const total = overallTotalRows.reduce((sum, r) => {
+        const price = overallTotalCostMap[r.vehicle_id] || 0;
+        return sum + (Number(price) * Number(r.quantity));
+      }, 0);
+
       // Format rows to match legacy shape
-      // Note: Prisma $queryRaw returns unquoted identifiers as lowercase
       const VehicleInventory = rows.map(r => {
         const colorObj = {
           id: r.color_id,
@@ -303,20 +330,15 @@ class VehicleInventoryController {
         const branchNames = r.branch_names || "";
         return {
           id: r.id,
-          // Vehicle master id — used by VehicleModal to fetch individual records
           vehicle: r.vehicle_id,
           vehicleId: r.vehicle_id,
-          // Flat fields for table columns
           modelName: r.modelname || r.modelName || "",
           modelCode: r.modelcode || r.modelCode || "",
           category: r.category || "",
           Status: r.status || "Avaliable",
           quantity: Number(r.quantity) || 0,
-          // Color nested object for the Color column renderer + hover popover
           color: colorObj,
-          // Branch as object: name is the comma-separated location string
           branch: { name: branchNames },
-          // Aliases
           colorId: r.color_id,
           location: branchNames,
           branchName: branchNames,
@@ -324,11 +346,6 @@ class VehicleInventoryController {
           imageDetails: r.url ? [{ id: r.color_id, url: r.url, color: r.color_name, code: r.code }] : []
         };
       });
-
-      const total = VehicleInventory.reduce((sum, inv) => {
-        const price = totalCostMap[inv.vehicle] || 0;
-        return sum + (Number(price) * Number(inv.quantity));
-      }, 0);
 
       return res.json({
         code: 200,
@@ -352,7 +369,7 @@ class VehicleInventoryController {
   getInventoryCounts = async (req, res) => {
     try {
       const { branch } = req.body;
-      const branchIds = Array.isArray(branch) ? branch : (branch ? [branch] : []);
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
 
       const whereClause = branchIds.length > 0
         ? { branchId: { in: branchIds } }
@@ -421,19 +438,7 @@ class VehicleInventoryController {
       // Debug log — remove once confirmed working
       logger.info(`getVehiclesByModel called: vehicle=${vehicleMasterId}, color=${colorId}, branch=${JSON.stringify(branch)}`);
 
-      // Normalize branch IDs — accept array of objects or strings
-      let branchIds = [];
-      if (Array.isArray(branch)) {
-        branchIds = branch.map(b => (typeof b === 'object' && b !== null) ? b.id : b).filter(Boolean);
-      } else if (branch) {
-        branchIds = [branch];
-      }
-
-      // Fall back to token branches if none passed
-      if (branchIds.length === 0) {
-        const tokenBranches = req.user?.branch || [];
-        branchIds = Array.isArray(tokenBranches) ? tokenBranches : [tokenBranches];
-      }
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
 
       const where = {
         ...(vehicleMasterId ? { vehicleId: vehicleMasterId } : {}),

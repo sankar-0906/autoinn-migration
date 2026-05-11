@@ -317,6 +317,7 @@ model Branch {
   VehicleInventoryTransfer_VehicleInventoryTransfer_toBranchToBranch   VehicleInventoryTransfer[]     @relation("VehicleInventoryTransfer_toBranchToBranch")
   VehiclePurchaseChallan                                               VehiclePurchaseChallan[]
   idCreation                                                           idCreation[]
+  transactions                                                         Transactions[]                 @relation("TransactionsHasBranch")
   manufacturer                                                         Manufacturer[]                 @relation("BanchHasManufacturers")
   bankDetails                                                          BankDetails[]                  @relation("BranchHasBankDetails")
   contacts                                                             BranchContacts[]               @relation("BranchHasManyBranchContacts")
@@ -837,6 +838,8 @@ model Transactions {
   partId             String?               @map("Part") @db.VarChar(25)
   status             String?
   color              String?
+  branchId           String?               @map("branch") @db.VarChar(25)
+  branch             Branch?               @relation("TransactionsHasBranch", fields: [branchId], references: [id], onUpdate: NoAction)
   Part               PartsMaster?          @relation("TransactionsRelatedToPartsMaster", fields: [partId], references: [id], onUpdate: NoAction)
   sparesMaterialSale MaterialIssue?        @relation("TransactionsHaveSaledMaterialSpares", fields: [sparesMaterialId], references: [id], onUpdate: NoAction)
   sparesPurchase     PurchaseSpareInvoice? @relation("TransactionsHavePurchasedSpares", fields: [sparesPurchaseId], references: [id], onUpdate: NoAction)

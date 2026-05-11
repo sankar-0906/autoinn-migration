@@ -49,13 +49,25 @@ class AdjustSparesInventoryController {
 
   get = async (req, res) => {
     try {
-      const { page = 1, size = 10, searchString } = req.body;
+      const { page = 1, size = 10, searchString, branch } = req.body;
       const skip = (page - 1) * size;
       const inputValue = searchString ? searchString.trim() : "";
       const tCased = await titleCase(inputValue);
 
-      const where = inputValue ? {
-        OR: [
+      let branchIds = [];
+      if (branch) {
+        branchIds = Array.isArray(branch) ? branch : [branch];
+      }
+
+      let where = {};
+      if (branchIds.length > 0) {
+        where.branchId = { in: branchIds };
+      }
+
+      if (inputValue) {
+        where = {
+          ...where,
+          OR: [
           { partNo: { partNumber: { contains: inputValue, mode: 'insensitive' } } },
           { partNo: { partName: { contains: inputValue, mode: 'insensitive' } } },
           { partNo: { displayName: { contains: inputValue, mode: 'insensitive' } } },
@@ -78,7 +90,8 @@ class AdjustSparesInventoryController {
             }
           }
         ]
-      } : {};
+      };
+    }
 
       const [history, count] = await Promise.all([
         prisma.adjustSparesInventory.findMany({

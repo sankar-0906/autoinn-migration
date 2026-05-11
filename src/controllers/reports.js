@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import moment from "moment";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 /**
  * Controller for Reporting operations.
@@ -33,19 +34,19 @@ class ReportController {
     try {
       const { timeline, from, to, branch } = req.body;
       const { fromDate, toDate } = this.getDateFormat(timeline, from, to);
-      const branchIds = branch || req.user?.branch || [];
+      const branchArr = normalizeBranchIds(branch, req.user?.branch);
 
       const [scooter, motorCycle] = await Promise.all([
         prisma.jobOrder.count({
           where: {
-            branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] },
+            branchId: { in: branchArr },
             vehicle: { vehicle: { category: "SCOOTER" } },
             createdAt: { gte: fromDate, lte: toDate }
           }
         }),
         prisma.jobOrder.count({
           where: {
-            branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] },
+            branchId: { in: branchArr },
             vehicle: { vehicle: { category: "MOTORCYCLE" } },
             createdAt: { gte: fromDate, lte: toDate }
           }
@@ -66,8 +67,7 @@ class ReportController {
     try {
       const { timeline, from, to, branch } = req.body;
       const { fromDate, toDate } = this.getDateFormat(timeline, from, to);
-      const branchIds = branch || req.user?.branch || [];
-      const branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
+      const branchArr = normalizeBranchIds(branch, req.user?.branch);
 
       const [freeService, accidentalRepair, paidAwService, paidUwService, quickRepair] = await Promise.all([
         prisma.jobOrder.count({ where: { branchId: { in: branchArr }, serviceType: { contains: "Free" }, createdAt: { gte: fromDate, lte: toDate } } }),
@@ -94,8 +94,7 @@ class ReportController {
     try {
       const { timeline, from, to, branch } = req.body;
       const { fromDate, toDate } = this.getDateFormat(timeline, from, to);
-      const branchIds = branch || req.user?.branch || [];
-      const branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
+      const branchArr = normalizeBranchIds(branch, req.user?.branch);
 
       const [service_1_done, service_6_done, OverAll_service_done, service_1_due, service_6_due, overAll_Service_due] = await Promise.all([
         prisma.saleSpareInvoice.count({ where: { branchId: { in: branchArr }, invoiceType: "jobOrder", jobOrder: { serviceNo: "1", jobStatus: "Proforma Invoice" }, invoiceDate: { gte: fromDate, lte: toDate } } }),
@@ -120,8 +119,7 @@ class ReportController {
     try {
       const { timeline, from, to, branch } = req.body;
       const { fromDate, toDate } = this.getDateFormat(timeline, from, to);
-      const branchIds = branch || req.user?.branch || [];
-      const branchArr = Array.isArray(branchIds) ? branchIds : [branchIds];
+      const branchArr = normalizeBranchIds(branch, req.user?.branch);
 
       const invoices = await prisma.saleSpareInvoice.findMany({
         where: {
@@ -181,12 +179,12 @@ class ReportController {
 
   getDashboardData = async (req, res) => {
     try {
-      const branchIds = req.body.branch || req.user?.branch || [];
+      const branchIds = normalizeBranchIds(req.body.branch, req.user?.branch);
       
       const [quotationCount, bookingCount, jobOrderCount] = await Promise.all([
-        prisma.quotation.count({ where: { branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } } }),
-        prisma.booking.count({ where: { branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } } }),
-        prisma.jobOrder.count({ where: { branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } } })
+        prisma.quotation.count({ where: { branchId: { in: branchIds } } }),
+        prisma.booking.count({ where: { branchId: { in: branchIds } } }),
+        prisma.jobOrder.count({ where: { branchId: { in: branchIds } } })
       ]);
 
       return res.json({
