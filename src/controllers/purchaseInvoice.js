@@ -2,6 +2,7 @@ import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 import moment from "moment";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 import IdGenerateController from "./idGenerate.js";
 
@@ -502,13 +503,8 @@ class PurchaseInvoiceController {
       const { page = 1, size = 10, searchString, branch } = req.body;
 
       // Priority: branch from body -> branch from token (user.branch)
-      let branchIds = [];
-      if (branch) {
-        branchIds = Array.isArray(branch) ? branch : [branch];
-      } else {
-        const userBranches = req.user?.branch || [];
-        branchIds = Array.isArray(userBranches) ? userBranches : [userBranches];
-      }
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
+      logger.info(`Fetching VehiclePurchaseInvoice for branches: ${JSON.stringify(branchIds)}`);
 
       const skip = (page - 1) * size;
       const inputValue = searchString || "";

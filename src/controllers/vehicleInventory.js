@@ -171,13 +171,7 @@ class VehicleInventoryController {
       const { page = 1, size = 10, searchString, branch } = req.body;
 
       // Support both branch from body and branch from token
-      let branchIds = [];
-      if (branch) {
-        branchIds = Array.isArray(branch) ? branch : [branch];
-      } else {
-        const userBranches = req.user?.branch || [];
-        branchIds = Array.isArray(userBranches) ? userBranches : [userBranches];
-      }
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
 
       const pg = (page - 1) * size;
       const inputValue = searchString || "";

@@ -271,7 +271,8 @@ class SparesInventoryController {
                   status: diffPhy > 0 ? "ADD" : "SUB",
                   color: diffPhy > 0 ? "green" : "red",
                   branch: { connect: { id: item.branch } },
-                  Part: { connect: { id: partId } }
+                  Part: { connect: { id: partId } },
+                  physicalQuantity: Math.abs(diffPhy)
                 }
               });
             }
@@ -284,7 +285,8 @@ class SparesInventoryController {
                   status: diffAcc > 0 ? "ADD" : "SUB",
                   color: diffAcc > 0 ? "green" : "red",
                   branch: { connect: { id: item.branch } },
-                  Part: { connect: { id: partId } }
+                  Part: { connect: { id: partId } },
+                  accountQuantity: Math.abs(diffAcc)
                 }
               });
             }
@@ -312,9 +314,12 @@ class SparesInventoryController {
                 createdAt: new Date(),
                 type: "Opening Stock",
                 Quantity: phy,
+                status: "ADD",
                 color: "green",
                 branch: { connect: { id: item.branch } },
-                Part: { connect: { id: partId } }
+                Part: { connect: { id: partId } },
+                physicalQuantity: phy,
+                accountQuantity: acc
               }
             });
 
@@ -381,7 +386,8 @@ class SparesInventoryController {
               status: diffPhy > 0 ? "ADD" : "SUB",
               color: diffPhy > 0 ? "green" : "red",
               branch: { connect: { id: existing.branchId } },
-              Part: { connect: { id: existing.partId } }
+              Part: { connect: { id: existing.partId } },
+              physicalQuantity: Math.abs(diffPhy)
             }
           });
         }
@@ -394,7 +400,8 @@ class SparesInventoryController {
               status: diffAcc > 0 ? "ADD" : "SUB",
               color: diffAcc > 0 ? "green" : "red",
               branch: { connect: { id: existing.branchId } },
-              Part: { connect: { id: existing.partId } }
+              Part: { connect: { id: existing.partId } },
+              accountQuantity: Math.abs(diffAcc)
             }
           });
         }

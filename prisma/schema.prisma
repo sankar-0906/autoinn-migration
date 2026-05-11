@@ -839,6 +839,8 @@ model Transactions {
   status             String?
   color              String?
   branchId           String?               @map("branch") @db.VarChar(25)
+  physicalQuantity   Int?
+  accountQuantity    Int?
   branch             Branch?               @relation("TransactionsHasBranch", fields: [branchId], references: [id], onUpdate: NoAction)
   Part               PartsMaster?          @relation("TransactionsRelatedToPartsMaster", fields: [partId], references: [id], onUpdate: NoAction)
   sparesMaterialSale MaterialIssue?        @relation("TransactionsHaveSaledMaterialSpares", fields: [sparesMaterialId], references: [id], onUpdate: NoAction)
