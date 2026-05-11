@@ -14,23 +14,42 @@ class SupplierController {
     contact: true,
     bank: true
   };
-
   formatSupplier(s) {
     if (!s) return null;
+    // Legacy parity: ensure TitleCase types if they come as UPPERCASE from DB
+    const formattedTypes = (s.supplierType || []).map(t => {
+      if (t === 'VEHICLE') return 'Vehicles';
+      if (t === 'SPARES') return 'Spares';
+      return t;
+    });
+
+    // Legacy parity: ensure both plural and singular versions are present if missing
+    if (formattedTypes.includes('Vehicles') && !formattedTypes.includes('Vehicle')) formattedTypes.push('Vehicle');
+    if (formattedTypes.includes('Spares') && !formattedTypes.includes('Spare')) formattedTypes.push('Spare');
+
     return {
       ...s,
       address: s.address ? {
         ...s.address,
-        district: s.address.district || { id: null, name: "" },
+        district: s.address.district ? {
+          ...s.address.district,
+          state: s.address.district.stateId || s.address.stateId, // Legacy expected ID here
+          country: s.address.countryId
+        } : { id: null, name: "" },
         state: s.address.state || { id: null, name: "" },
         country: s.address.country || { id: null, name: "" },
       } : null,
       shippingAddress: s.shippingAddress ? {
         ...s.shippingAddress,
-        district: s.shippingAddress.district || { id: null, name: "" },
+        district: s.shippingAddress.district ? {
+          ...s.shippingAddress.district,
+          state: s.shippingAddress.district.stateId || s.shippingAddress.stateId,
+          country: s.shippingAddress.countryId
+        } : { id: null, name: "" },
         state: s.shippingAddress.state || { id: null, name: "" },
         country: s.shippingAddress.country || { id: null, name: "" },
       } : null,
+      supplierType: formattedTypes,
       contact: s.contact || [],
       bank: s.bank || []
     };

@@ -66,7 +66,7 @@ async function syncDatabase() {
       ORDER BY CASE WHEN table_schema = '${preferredSchema}' THEN 0 ELSE 1 END
       LIMIT 1;
     `);
-
+    
     if (results.length > 0) {
       return `"${results[0].table_schema}"."${tableName}"`;
     }
@@ -120,7 +120,7 @@ async function syncDatabase() {
       }
 
       console.log(`Migrating relation ${item.target}.${item.column} from ${joinTable}...`);
-
+      
       await prisma.$executeRawUnsafe(`
         ALTER TABLE ${targetTable} 
         ADD COLUMN IF NOT EXISTS "${item.column}" VARCHAR(25);
@@ -132,19 +132,8 @@ async function syncDatabase() {
         FROM ${joinTable} j
         WHERE t.id = j."${item.childCol}";
       `);
-
+      
       console.log(`✅ Success: Migrated ${item.joinTable} -> ${item.target}.${item.column}`);
-
-      // BACKFILL: Link items back to their parent if join table has data
-      if (item.target === 'PurchaseSpareInvoiceItem' && item.column === 'purchaseSpareInvoice') {
-        console.log("Backfilling links from Items to PurchaseSpareInvoice...");
-        await prisma.$executeRawUnsafe(`
-          UPDATE ${targetTable} t
-          SET "${item.column}" = j."${item.parentCol}"
-          FROM ${joinTable} j
-          WHERE t.id = j."${item.childCol}" AND (t."${item.column}" IS NULL OR t."${item.column}" = '');
-        `);
-      }
     } catch (err) {
       console.error(`❌ Error migrating relation ${item.target}.${item.column}:`, err.message);
     }
@@ -163,7 +152,7 @@ async function syncDatabase() {
       }
 
       console.log(`Migrating array ${item.target}.${item.column} from ${sourceTable}...`);
-
+      
       await prisma.$executeRawUnsafe(`
         ALTER TABLE ${targetTable} 
         ADD COLUMN IF NOT EXISTS "${item.column}" text[];
@@ -177,7 +166,7 @@ async function syncDatabase() {
           WHERE s."nodeId" = t.id
         );
       `);
-
+      
       console.log(`✅ Success: Migrated ${item.source} -> ${item.target}.${item.column}`);
     } catch (err) {
       console.error(`❌ Error migrating ${item.target}.${item.column}:`, err.message);
@@ -198,7 +187,7 @@ async function syncDatabase() {
       WHERE contype = 'f' 
         AND pg_get_constraintdef(oid) LIKE '%SET NULL%';
     `);
-
+    
     console.log(`Debug: Found ${allSetNull.length} total SET NULL constraints in DB.`);
     // if (allSetNull.length > 0) {
     //   console.log("Sample constraint definition:", allSetNull[0].definition);
@@ -219,16 +208,16 @@ async function syncDatabase() {
 
     for (const con of constraints) {
       const { table_name, constraint_name, definition } = con;
-
+      
       // Match definition: FOREIGN KEY (col) REFERENCES "schema"."Table"(id) ON DELETE SET NULL
       const match = definition.match(/FOREIGN KEY \((.*?)\) REFERENCES (.*?) ON DELETE SET NULL/i);
-
+      
       if (match) {
         const column = match[1];
         const referenced = match[2];
-
+        
         console.log(`Fixing ${table_name}.${constraint_name} (${column} -> ${referenced})...`);
-
+        
         try {
           // Drop old constraint and add new one with ON DELETE RESTRICT
           // Note: table_name from regclass is already quoted if needed
@@ -247,49 +236,6 @@ async function syncDatabase() {
     }
   } catch (err) {
     console.error("❌ Error in constraint fixing step:", err.message);
-  }
-
-  // 6. Final Data Backfills
-  try {
-    console.log("Running final data backfills...");
-    
-    // Backfill branch for PurchaseSpareInvoice from its items
-    await prisma.$executeRawUnsafe(`
-      UPDATE "${TARGET_SCHEMA}"."PurchaseSpareInvoice" p
-      SET "branch" = (
-        SELECT i.branch 
-        FROM "${TARGET_SCHEMA}"."PurchaseSpareInvoiceItem" i 
-        WHERE i."purchaseSpareInvoice" = p.id AND i.branch IS NOT NULL
-        LIMIT 1
-      )
-      WHERE p.branch IS NULL OR p.branch = '';
-    `);
-
-    // Assign default branch to any remaining orphans
-    const defaultBranch = 'ck8g589vj499008806oh90nmx'; // Devanahalli
-    await prisma.$executeRawUnsafe(`
-      UPDATE "${TARGET_SCHEMA}"."PurchaseSpareInvoice"
-      SET branch = '${defaultBranch}'
-      WHERE branch IS NULL OR branch = '';
-    `);
-
-    // Update Supplier types to ensure visibility in dropdowns (VEHICLE/SPARES)
-    await prisma.$executeRawUnsafe(`
-      UPDATE "${TARGET_SCHEMA}"."Supplier"
-      SET "supplierType" = ARRAY['VEHICLE', 'SPARES']
-      WHERE "supplierType" IS NULL OR "supplierType" = '{}';
-    `);
-
-    // Ensure Manufacturers are flagged as vehicle manufacturers for dropdowns
-    await prisma.$executeRawUnsafe(`
-      UPDATE "${TARGET_SCHEMA}"."Manufacturer"
-      SET "vehicleManufacturer" = true
-      WHERE "vehicleManufacturer" IS NULL;
-    `);
-
-    console.log("✅ Data backfills complete.");
-  } catch (err) {
-    console.error("❌ Error in backfill step:", err.message);
   }
 
   console.log("------------------- DB SYNC COMPLETE -------------------");
