@@ -8,6 +8,9 @@ const router = Router();
 router.use(auth);
 
 router.post("/get", controller.getPage);
+router.post("/", controller.create);
+router.put("/:id", controller.update);
+router.delete("/:id", controller.delete);
 router.get("/maxSlipNumber/:materialIssueId", controller.getMaxSlipNumber);
 router.get("/jobMaterial/:id", controller.getJobMaterial);
 router.get("/import-from-estimate/:jobOrderNo", controller.importFromEstimate);

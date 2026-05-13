@@ -11,23 +11,27 @@ class OptionsListController {
     try {
       const { module: table, searchString = "", page, size, column = "name", branch } = req.body;
       const parsedPage = parseInt(page) || 1;
-      const parsedSize = parseInt(size) || 10;
+      const parsedSize = parseInt(size) || 100; // Increased default to 100 for better dropdown population
       const skip = (parsedPage - 1) * parsedSize;
       const take = parsedSize === 0 ? undefined : parsedSize;
-      const queryStr = searchString || "";
+      const queryStr = (searchString || "").replace(/\.+$/, ""); // Remove trailing dots for cleaner search
 
-      // Fetch manufacturers associated with the user's branches for filtering
-      let branchIds = req.body.branch || req.user?.branch || [];
+      // Normalize branchIds to always be an array
+      let rawBranchIds = req.body.branch || req.user?.branch || [];
+      let branchIds = Array.isArray(rawBranchIds) ? rawBranchIds : [rawBranchIds];
+      
       // Default to Devanahalli if no branches assigned
-      if ((!branchIds || (Array.isArray(branchIds) && branchIds.length === 0))) {
+      if (branchIds.length === 0 || !branchIds[0]) {
         branchIds = ["ck8g589vj499008806oh90nmx"]; // Devanahalli
       }
 
       const userBranches = await prisma.branch.findMany({
-        where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        where: { id: { in: branchIds } },
         include: { manufacturer: true }
       });
       const allowedManufacturerIds = userBranches.flatMap(b => b.manufacturer.map(m => m.id));
+
+      logger.info(`OptionsList.getList: module=${table}, search=${queryStr}, branch=${JSON.stringify(branchIds)}`);
 
       // Default OR conditions for generic name/code search
       const orConditions = queryStr
@@ -100,6 +104,7 @@ class OptionsListController {
           break;
 
         case "partsMasters":
+        case "partsMaster":
           optionsList = await prisma.partsMaster.findMany({
             where: {
               manufacturerId: { in: allowedManufacturerIds },
@@ -108,9 +113,14 @@ class OptionsListController {
                 { partNumber: { contains: queryStr, mode: 'insensitive' } }
               ]
             },
-            include: { manufacturer: true, hsn: true },
+            include: { manufacturer: true, hsn: true, vehicleSuit: { include: { VehicleMaster: true } } },
             take: 100
           });
+          // Parity for vehicleSuit
+          optionsList = optionsList.map(p => ({
+            ...p,
+            vehicleSuit: (p.vehicleSuit || []).map(vs => ({ ...vs, vehicle: vs.VehicleMaster }))
+          }));
           break;
 
         case "hsns":
@@ -173,9 +183,89 @@ class OptionsListController {
           }));
           break;
 
+        case "jobCodes":
+          optionsList = await prisma.jobCode.findMany({
+            where: {
+              OR: [
+                { code: { contains: queryStr, mode: 'insensitive' } },
+                { description: { contains: queryStr, mode: 'insensitive' } }
+              ]
+            },
+            include: {
+              JobCodePrice: {
+                include: { vehicle: true }
+              },
+              sac: true
+            },
+            take,
+            skip
+          });
+          // Map JobCodePrice to vehicleModel for parity
+          optionsList = optionsList.map(jc => ({
+            ...jc,
+            vehicleModel: jc.JobCodePrice[0] || null // Legacy expected single object or first match
+          }));
+          break;
+
+        case "sparesInventories":
+        case "sparesInventory":
+          optionsList = await prisma.sparesInventory.findMany({
+            where: {
+              branchId: { in: branchIds },
+              phyQuantity: { gt: 0 },
+              partNo: {
+                OR: [
+                  { partName: { contains: queryStr, mode: 'insensitive' } },
+                  { partNumber: { contains: queryStr, mode: 'insensitive' } }
+                ]
+              }
+            },
+            include: {
+              partNo: {
+                include: { manufacturer: true, hsn: true }
+              }
+            },
+            take,
+            skip
+          });
+          break;
+
+        case "user":
+        case "users":
+          optionsList = await prisma.user.findMany({
+            where: {
+              OR: [
+                { phone: { contains: queryStr, mode: 'insensitive' } },
+                { email: { contains: queryStr, mode: 'insensitive' } },
+                {
+                  EmployeeProfile_User_profileToEmployeeProfile: {
+                    employeeName: { contains: queryStr, mode: 'insensitive' }
+                  }
+                }
+              ]
+            },
+            include: {
+              EmployeeProfile_User_profileToEmployeeProfile: {
+                include: { department: true }
+              }
+            },
+            take,
+            skip
+          });
+          // Map EmployeeProfile to profile for legacy parity
+          optionsList = optionsList.map(u => ({
+            ...u,
+            profile: u.EmployeeProfile_User_profileToEmployeeProfile
+          }));
+          break;
+
         case "jobOrders":
           optionsList = await prisma.jobOrder.findMany({
             where: {
+              branchId: { in: branchIds },
+              ...(Array.isArray(req.body.except)
+                ? { NOT: { jobStatus: { in: req.body.except } } }
+                : {}),
               OR: [
                 { jobNo: { contains: queryStr, mode: 'insensitive' } },
                 { vehicle: { registerNo: { contains: queryStr, mode: 'insensitive' } } },
@@ -187,13 +277,13 @@ class OptionsListController {
               customer: { include: { CustomerPhone: true } },
               branch: true
             },
+            orderBy: { createdAt: 'desc' },
             take,
             skip
           });
           break;
 
         default: {
-          // Try generic findMany if table matches a model name (lowercased)
           const modelMapping = {
             "branches": "branch",
             "manufacturers": "manufacturer",
@@ -202,17 +292,29 @@ class OptionsListController {
             "departments": "department",
             "insurances": "insurance",
             "subDealers": "subDealer",
-            "financers": "financer",
             "rtoes": "rto",
+            "countries": "country",
+            "states": "state",
+            "cities": "city",
+            "districts": "city", // Districts are stored in City model as per Address relation
           };
-          const prismaModel = modelMapping[table] || table.replace(/s$/, ""); // Simple plural to singular
+          
+          let prismaModel = modelMapping[table] || table;
+          // Robust plural to singular fallback
+          if (!prisma[prismaModel]) {
+             prismaModel = table.replace(/s$/, "");
+          }
 
           if (prisma[prismaModel]) {
             const where = queryStr
-              ? { OR: orConditions }
+              ? {
+                  OR: [
+                    { [column]: { contains: queryStr, mode: 'insensitive' } },
+                    { code: { contains: queryStr, mode: 'insensitive' } }
+                  ]
+                }
               : {};
 
-            // Specific filtering for manufacturers
             if (table === "manufacturers") {
               where.id = { in: allowedManufacturerIds };
               if (req.body.vehicleManufacturer !== undefined) {

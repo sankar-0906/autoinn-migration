@@ -133,6 +133,7 @@ model User {
   createdSuppliers                              Supplier[]                     @relation("SupplierWasCreatedByUser")
   createdSupConts                               SupplierContact[]              @relation("SupplierContactWasCreatedByUser")
   Task                                          Task[]
+  teleCMIUserStatuses                           TeleCMIUserStatus[]            @relation("TeleCMIUserStatusToUser")
   createdBy                                     User?                          @relation("UserWasCreatedByUser", fields: [createdById], references: [id], onUpdate: NoAction)
   createdUsers                                  User[]                         @relation("UserWasCreatedByUser")
   Customer_User_customerDetailsToCustomer       Customer?                      @relation("User_customerDetailsToCustomer", fields: [customerDetails], references: [id], onUpdate: NoAction)
@@ -985,7 +986,7 @@ model JobCodePrice {
 }
 
 model JobOrder {
-  id                                                        String                @id @default(cuid()) @db.VarChar(25)
+  id                                                        String                @id @default(cuid()) @db.VarChar(40)
   jobNo                                                     String?               @unique(map: "default$default.JobOrder.jobNo._UNIQUE")
   dateTime                                                  DateTime?
   serviceType                                               String?
@@ -994,19 +995,19 @@ model JobOrder {
   kms                                                       Decimal?
   createdAt                                                 DateTime
   updatedAt                                                 DateTime              @updatedAt
-  customerId                                                String?               @map("customer") @db.VarChar(25)
-  createdById                                               String?               @map("createdBy") @db.VarChar(25)
+  customerId                                                String?               @map("customer") @db.VarChar(40)
+  createdById                                               String?               @map("createdBy") @db.VarChar(40)
   fuelLevel                                                 Decimal?
-  vehicleImage                                              String?               @db.VarChar(25)
-  vehicleId                                                 String?               @map("vehicle") @db.VarChar(25)
-  branchId                                                  String?               @map("branch") @db.VarChar(25)
-  parts                                                     String?               @db.VarChar(25)
+  vehicleImage                                              String?               @db.VarChar(40)
+  vehicleId                                                 String?               @map("vehicle") @db.VarChar(40)
+  branchId                                                  String?               @map("branch") @db.VarChar(40)
+  parts                                                     String?               @db.VarChar(40)
   jobStatus                                                 String?
   customerPhone                                             String?
   jobOrderPdf                                               String?
-  mechanicId                                                String?               @map("mechanic") @db.VarChar(25)
-  serviceReminderId                                         String?               @map("serviceReminder") @db.VarChar(25)
-  rampId                                                    String?               @map("ramp") @db.VarChar(25)
+  mechanicId                                                String?               @map("mechanic") @db.VarChar(40)
+  serviceReminderId                                         String?               @map("serviceReminder") @db.VarChar(40)
+  rampId                                                    String?               @map("ramp") @db.VarChar(40)
   customerFeedback                                          String?
   accidentalDocuments                                       AccidentalDocument[]  @relation("JobOrderHasAccidentalDocs")
   customerSpareOrders                                       CustomerSpareOrder[]  @relation("CustomerSpareOrderHasJobOrder")
@@ -1059,7 +1060,7 @@ model JobOrderLog {
 }
 
 model Estimate {
-  id               String         @id @default(cuid()) @db.VarChar(25)
+  id               String         @id @default(cuid()) @db.VarChar(40)
   estimateNo       String?
   dateTime         DateTime?
   estimateStatus   String?
@@ -1077,16 +1078,17 @@ model Estimate {
   estTotalAmount   Decimal?
   createdAt        DateTime
   updatedAt        DateTime       @updatedAt
-  jobOrderId       String?        @map("jobOrder") @db.VarChar(25)
-  branchId         String?        @map("branch") @db.VarChar(25)
-  createdById      String?        @map("createdBy") @db.VarChar(25)
+  jobOrderId       String?        @map("jobOrder") @db.VarChar(40)
+  branchId         String?        @map("branch") @db.VarChar(40)
+  createdById      String?        @map("createdBy") @db.VarChar(40)
   estimatePdf      String?
   serviceType      String?
   claimType        String?
+  adjustment       Decimal?
 
   survivorContact  String?
-  survivorId       String?        @map("survivor") @db.VarChar(25)
-  insurerId        String?        @map("insurer") @db.VarChar(25)
+  survivorId       String?        @map("survivor") @db.VarChar(40)
+  insurerId        String?        @map("insurer") @db.VarChar(40)
   claimStatus      Boolean?
   branch           Branch?        @relation("EstimateHasBranch", fields: [branchId], references: [id], onUpdate: NoAction)
   createdBy        User?          @relation("EstimateWasCreatedBy", fields: [createdById], references: [id], onUpdate: NoAction)
@@ -1097,7 +1099,7 @@ model Estimate {
 }
 
 model EstimateItem {
-  id              String       @id @default(cuid()) @db.VarChar(25)
+  id              String       @id @default(cuid()) @db.VarChar(40)
   quantity        Decimal?
   unitRate        Decimal?
   igst            Decimal?
@@ -1110,11 +1112,11 @@ model EstimateItem {
   discountPercent Decimal?
   createdAt       DateTime
   updatedAt       DateTime     @updatedAt
-  createdById     String?      @map("createdBy") @db.VarChar(25)
-  partId          String?      @map("partNumber") @db.VarChar(25)
-  jobCodeId       String?      @map("jobCode") @db.VarChar(25)
-  sacId           String?      @map("sac") @db.VarChar(25)
-  hsnId           String?      @map("hsn") @db.VarChar(25)
+  createdById     String?      @map("createdBy") @db.VarChar(40)
+  partId          String?      @map("partNumber") @db.VarChar(40)
+  jobCodeId       String?      @map("jobCode") @db.VarChar(40)
+  sacId           String?      @map("sac") @db.VarChar(40)
+  hsnId           String?      @map("hsn") @db.VarChar(40)
   status          String?
   imageUrl        String?
   createdBy       User?        @relation("EstimateItemWasCreatedBy", fields: [createdById], references: [id], onUpdate: NoAction)
@@ -1126,7 +1128,7 @@ model EstimateItem {
 }
 
 model JobVehicleParts {
-  id          String     @id @default(cuid()) @db.VarChar(25)
+  id          String     @id @default(cuid()) @db.VarChar(40)
   MirrorRH    Boolean?
   MirrorLH    Boolean?
   Toolkit     Boolean?
@@ -2186,9 +2188,10 @@ model TeleCMIUserStatus {
   teleCMIUserID   String
   teleCMIUserName String?
   status          Boolean?
-  activeUserId    String?
+  activeUserId    String?  @db.VarChar(25)
   createdAt       DateTime
   updatedAt       DateTime @updatedAt
+  activeUser      User?    @relation("TeleCMIUserStatusToUser", fields: [activeUserId], references: [id], onUpdate: NoAction)
 }
 
 model RingTone {

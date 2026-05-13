@@ -1,15 +1,51 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import { broadcastEstimateUpdate } from "../config/webSocket.js";
 
 import IdGenerateController from "./idGenerate.js";
 import JobOrderController from "./jobOrder.js";
+import PDFUtil from "../utils/pdf.util.js";
+import { uploadPDFToSpaces } from "../utils/spaces.util.js";
+import moment from "moment";
 
 /**
  * Controller for Service Estimate operations.
  * Maintained with 100% payload parity with autoinn-be.
  */
 class EstimateController {
+  getTemplateData(formatted) {
+    return {
+      vehicle: [{
+        jobNo: formatted.jobOrder?.jobNo,
+        serviceType: formatted.serviceType,
+        claimType: formatted.claimType,
+        claimStatus: formatted.claimStatus,
+        insurer: formatted.insurer?.name,
+        survivor: formatted.survivor?.name,
+        survivorContact: formatted.survivorContact,
+        estimate: (formatted.estimateItemInvoice || []).map((item, index) => ({
+          index: index + 1,
+          partNumber: item.partNumber?.partNumber || item.jobCode?.code || "N/A",
+          quantity: item.quantity,
+          unitRate: item.unitRate,
+          rate: (item.quantity * item.unitRate).toFixed(2),
+          status: item.status
+        })),
+        labourCharge: formatted.labourCharge,
+        partCharge: formatted.partCharge,
+        consumableCharge: formatted.consumableCharge,
+        customer: {
+          name: formatted.jobOrder?.customer?.name,
+          contact: formatted.jobOrder?.customer?.contacts?.[0]?.phone || formatted.jobOrder?.customerPhone
+        },
+        cdate: moment(formatted.createdAt).format("DD/MM/YYYY"),
+        ctime: moment(formatted.createdAt).format("hh:mm A"),
+        estTotalAmount: formatted.estTotalAmount
+      }]
+    };
+  }
+
   // Shared include object for Estimate
   estimateInclude = {
     jobOrder: {
@@ -84,96 +120,291 @@ class EstimateController {
     return formatted;
   };
 
+  /**
+   * Helper to extract ID from connect objects or strings.
+   */
+  getConnectId = (val) => {
+    if (!val) return null;
+    if (typeof val === 'string') return val;
+    if (typeof val === 'object' && val.id) return val.id;
+    return null;
+  };
+
+  /**
+   * Helper to validate if a record exists in the database.
+   */
+  getValidatedId = async (model, val) => {
+    const id = this.getConnectId(val);
+    if (!id) return null;
+
+    try {
+      const record = await prisma[model].findUnique({
+        where: { id },
+        select: { id: true }
+      });
+      return record ? id : null;
+    } catch (err) {
+      return null;
+    }
+  };
+
   createEstimate = async (req, res) => {
     try {
       const {
         estimateNo, jobOrder, dateTime, estimateStatus,
-        itemRate, discountType, discountPercent, discountRate,
-        tcs, cgst, sgst, igst, totalDiscount, adjustment, totalInvoice,
-        estimateItemInvoice, estimateJobInvoice
+        discountLevel, discountType, discountPercent, discountRate,
+        cgstAmount, sgstAmount, igstAmount, totalDiscount,
+        labourCharge, consumableCharge, partCharge, estTotalAmount,
+        estimateItemInvoice, branch, serviceType, claimStatus, claimType,
+        insurer, survivor, survivorContact, adjustment
       } = req.body;
+
       const user = req.user?.id || req.headers["user-id"];
+
+      // Validate core relations
+      const validatedJobOrderId = await this.getValidatedId('jobOrder', jobOrder);
+      const validatedBranchId = await this.getValidatedId('branch', branch);
+      const validatedInsurerId = await this.getValidatedId('insurance', insurer);
+      const validatedSurvivorId = await this.getValidatedId('customer', survivor);
+      const validatedUserId = await this.getValidatedId('user', user);
+
+      // Prevent duplicate estimates for the same job order
+      if (validatedJobOrderId) {
+        const existingEstimate = await prisma.estimate.findFirst({
+          where: { jobOrderId: validatedJobOrderId }
+        });
+        if (existingEstimate) {
+          return res.json({ 
+            code: 400, 
+            msg: `An estimate (No: ${existingEstimate.estimateNo}) already exists for this Job Order. Please modify the existing record instead of creating a new one.` 
+          });
+        }
+      }
+
+      // Map items with existence checks
+      const itemsToCreate = [];
+      if (estimateItemInvoice && estimateItemInvoice.length > 0) {
+        for (const item of estimateItemInvoice) {
+          const partId = (item.partNumber && (item.partNumber.partNumber || item.partNumber.category)) ? this.getConnectId(item.partNumber) : null;
+          const jobCodeId = item.jobCode ? this.getConnectId(item.jobCode) : ((item.partNumber && item.partNumber.code) ? this.getConnectId(item.partNumber) : null);
+          
+          const validatedPartId = partId ? await this.getValidatedId('partsMaster', partId) : null;
+          const validatedJobCodeId = jobCodeId ? await this.getValidatedId('jobCode', jobCodeId) : null;
+          const validatedHsnId = (validatedPartId && item.hsn) ? await this.getValidatedId('hsn', item.hsn) : null;
+          const validatedSacId = (validatedJobCodeId && item.sac) ? await this.getValidatedId('sac', item.sac) : null;
+
+          itemsToCreate.push({
+            partNumber: validatedPartId ? { connect: { id: validatedPartId } } : undefined,
+            jobCode: validatedJobCodeId ? { connect: { id: validatedJobCodeId } } : undefined,
+            quantity: parseFloat(item.quantity) || 0,
+            unitRate: parseFloat(item.unitRate || item.rate) || 0,
+            igst: parseFloat(item.igst) || 0,
+            cgst: parseFloat(item.cgst) || 0,
+            sgst: parseFloat(item.sgst) || 0,
+            igstAmount: parseFloat(item.igstAmount) || 0,
+            cgstAmount: parseFloat(item.cgstAmount) || 0,
+            sgstAmount: parseFloat(item.sgstAmount) || 0,
+            discountAmount: parseFloat(item.discountAmount) || 0,
+            discountPercent: parseFloat(item.discountPercent || item.discount) || 0,
+            hsn: validatedHsnId ? { connect: { id: validatedHsnId } } : undefined,
+            sac: validatedSacId ? { connect: { id: validatedSacId } } : undefined,
+            status: item.status,
+            createdAt: new Date(),
+            updatedAt: new Date()
+          });
+        }
+      }
 
       const created = await prisma.estimate.create({
         data: {
           estimateNo,
           dateTime: dateTime ? new Date(dateTime) : new Date(),
           estimateStatus: estimateStatus || "PENDING",
-          itemRate: parseFloat(itemRate) || 0,
+          discountLevel,
           discountType,
           discountPercent: parseFloat(discountPercent) || 0,
           discountRate: parseFloat(discountRate) || 0,
-          tcs: parseFloat(tcs) || 0,
-          cgst: parseFloat(cgst) || 0,
-          sgst: parseFloat(sgst) || 0,
-          igst: parseFloat(igst) || 0,
+          cgstAmount: parseFloat(cgstAmount) || 0,
+          sgstAmount: parseFloat(sgstAmount) || 0,
+          igstAmount: parseFloat(igstAmount) || 0,
           totalDiscount: parseFloat(totalDiscount) || 0,
+          labourCharge: parseFloat(labourCharge) || 0,
+          consumableCharge: parseFloat(consumableCharge) || 0,
+          partCharge: parseFloat(partCharge) || 0,
+          estTotalAmount: parseFloat(estTotalAmount) || 0,
           adjustment: parseFloat(adjustment) || 0,
-          estTotalAmount: parseFloat(totalInvoice) || 0,
+          serviceType,
+          claimType,
+          claimStatus: claimStatus === "true" || claimStatus === true,
+          survivorContact,
           createdAt: new Date(),
           updatedAt: new Date(),
-          jobOrder: jobOrder ? { connect: { id: jobOrder } } : undefined,
-          createdBy: user ? { connect: { id: user } } : undefined,
-          EstimateItem: estimateItemInvoice && estimateItemInvoice.length > 0 ? {
-            create: estimateItemInvoice.map(item => ({
-              partNumber: item.partNumber ? { connect: { id: item.partNumber } } : undefined,
-              jobCode: item.jobCode ? { connect: { id: item.jobCode } } : undefined,
-              partName: item.partName,
-              quantity: parseFloat(item.quantity) || 0,
-              unitRate: parseFloat(item.unitRate) || 0,
-              gstRate: parseFloat(item.gstRate) || 0,
-              igst: parseFloat(item.igst) || 0,
-              cgst: parseFloat(item.cgst) || 0,
-              sgst: parseFloat(item.sgst) || 0,
-              igstAmount: parseFloat(item.igstAmount) || 0,
-              cgstAmount: parseFloat(item.cgstAmount) || 0,
-              sgstAmount: parseFloat(item.sgstAmount) || 0,
-              discountAmount: parseFloat(item.discountAmount) || 0,
-              hsn: item.hsn ? { connect: { id: item.hsn } } : undefined,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }))
-          } : undefined,
-          estimateJobInvoice: estimateJobInvoice && estimateJobInvoice.length > 0 ? {
-            create: estimateJobInvoice.map(job => ({
-              jobCode: { connect: { id: job.jobCode } },
-              jobDescription: job.jobDescription,
-              labourRate: parseFloat(job.labourRate) || 0,
-              gstRate: parseFloat(job.gstRate) || 0,
-              igst: parseFloat(job.igst) || 0,
-              cgst: parseFloat(job.cgst) || 0,
-              sgst: parseFloat(job.sgst) || 0,
-              igstAmount: parseFloat(job.igstAmount) || 0,
-              cgstAmount: parseFloat(job.cgstAmount) || 0,
-              sgstAmount: parseFloat(job.sgstAmount) || 0,
-              discountAmount: parseFloat(job.discountAmount) || 0,
-              sac: job.sac ? { connect: { id: job.sac } } : undefined,
-              createdAt: new Date(),
-              updatedAt: new Date()
-            }))
+          jobOrder: validatedJobOrderId ? { connect: { id: validatedJobOrderId } } : undefined,
+          branch: validatedBranchId ? { connect: { id: validatedBranchId } } : undefined,
+          insurer: validatedInsurerId ? { connect: { id: validatedInsurerId } } : undefined,
+          survivor: validatedSurvivorId ? { connect: { id: validatedSurvivorId } } : undefined,
+          createdBy: validatedUserId ? { connect: { id: validatedUserId } } : undefined,
+          EstimateItem: itemsToCreate.length > 0 ? {
+            create: itemsToCreate
           } : undefined
         },
         include: this.estimateInclude
       });
 
+      // Update Job Order status to "Estimation"
+      if (validatedJobOrderId) {
+        try {
+          await JobOrderController.setStatus({
+            body: { id: validatedJobOrderId, type: "Estimate" }
+          }, { json: () => {} });
+        } catch (statusErr) {
+          logger.error("Failed to update JobOrder status during estimate creation:", statusErr);
+        }
+      }
+
       // Increment ID counter
-      let branchId = null;
-      if (jobOrder) {
+      let branchId = branch;
+      if (!branchId && jobOrder) {
           const jo = await prisma.jobOrder.findUnique({ where: { id: jobOrder }, select: { branchId: true } });
           branchId = jo?.branchId;
       }
-      await IdGenerateController.incrementId("ESTIMATE", branchId);
+      if (branchId) {
+        await IdGenerateController.incrementId("ESTIMATE", branchId);
+      }
+
+      // Generate and upload PDF to Spaces
+      const finalEstimate = await this.generateAndUploadPDF(created.id) || created;
 
       return res.json({
         code: 200,
         response: {
           code: 200,
           msg: "Estimate Invoice created",
-          data: this.formatEstimate(created)
+          data: this.formatEstimate(finalEstimate)
         }
       });
     } catch (err) {
       logger.error("Create estimate error:", err);
+      return res.json({ code: 500, msg: "An error occured", err });
+    }
+  };
+
+  updateEstimate = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        estimateNo, jobOrder, dateTime, estimateStatus,
+        discountLevel, discountType, discountPercent, discountRate,
+        cgstAmount, sgstAmount, igstAmount, totalDiscount,
+        labourCharge, consumableCharge, partCharge, estTotalAmount,
+        estimateItemInvoice, branch, serviceType, claimStatus, claimType,
+        insurer, survivor, survivorContact, deleteData1, deleteData2, adjustment
+      } = req.body;
+
+      // Validate core relations
+      const validatedJobOrderId = await this.getValidatedId('jobOrder', jobOrder);
+      const validatedBranchId = await this.getValidatedId('branch', branch);
+      const validatedInsurerId = await this.getValidatedId('insurance', insurer);
+      const validatedSurvivorId = await this.getValidatedId('customer', survivor);
+
+      // Handle item deletions
+      const deleteIds = [...(deleteData1 || []), ...(deleteData2 || [])];
+      if (deleteIds.length > 0) {
+        await prisma.estimateItem.deleteMany({
+          where: { id: { in: deleteIds } }
+        });
+      }
+
+      // Map items with existence checks
+      const itemsToUpsert = [];
+      if (estimateItemInvoice && estimateItemInvoice.length > 0) {
+        for (const item of estimateItemInvoice) {
+          const partId = (item.partNumber && (item.partNumber.partNumber || item.partNumber.category)) ? this.getConnectId(item.partNumber) : null;
+          const jobCodeId = item.jobCode ? this.getConnectId(item.jobCode) : ((item.partNumber && item.partNumber.code) ? this.getConnectId(item.partNumber) : null);
+
+          const validatedPartId = partId ? await this.getValidatedId('partsMaster', partId) : null;
+          const validatedJobCodeId = jobCodeId ? await this.getValidatedId('jobCode', jobCodeId) : null;
+          const validatedHsnId = (validatedPartId && item.hsn) ? await this.getValidatedId('hsn', item.hsn) : null;
+          const validatedSacId = (validatedJobCodeId && item.sac) ? await this.getValidatedId('sac', item.sac) : null;
+
+          const itemData = {
+            partNumber: validatedPartId ? { connect: { id: validatedPartId } } : undefined,
+            jobCode: validatedJobCodeId ? { connect: { id: validatedJobCodeId } } : undefined,
+            quantity: parseFloat(item.quantity) || 0,
+            unitRate: parseFloat(item.unitRate || item.rate) || 0,
+            igst: parseFloat(item.igst) || 0,
+            cgst: parseFloat(item.cgst) || 0,
+            sgst: parseFloat(item.sgst) || 0,
+            igstAmount: parseFloat(item.igstAmount) || 0,
+            cgstAmount: parseFloat(item.cgstAmount) || 0,
+            sgstAmount: parseFloat(item.sgstAmount) || 0,
+            discountAmount: parseFloat(item.discountAmount) || 0,
+            discountPercent: parseFloat(item.discountPercent || item.discount) || 0,
+            hsn: validatedHsnId ? { connect: { id: validatedHsnId } } : undefined,
+            sac: validatedSacId ? { connect: { id: validatedSacId } } : undefined,
+            status: item.status,
+            updatedAt: new Date()
+          };
+
+          itemsToUpsert.push({
+            where: { id: item.id || 'new-item' },
+            create: {
+              ...itemData,
+              createdAt: new Date(),
+            },
+            update: itemData
+          });
+        }
+      }
+
+      const updated = await prisma.estimate.update({
+        where: { id },
+        data: {
+          estimateNo,
+          dateTime: dateTime ? new Date(dateTime) : undefined,
+          estimateStatus,
+          discountLevel,
+          discountType,
+          discountPercent: discountPercent !== undefined ? parseFloat(discountPercent) : undefined,
+          discountRate: discountRate !== undefined ? parseFloat(discountRate) : undefined,
+          cgstAmount: cgstAmount !== undefined ? parseFloat(cgstAmount) : undefined,
+          sgstAmount: sgstAmount !== undefined ? parseFloat(sgstAmount) : undefined,
+          igstAmount: igstAmount !== undefined ? parseFloat(igstAmount) : undefined,
+          totalDiscount: totalDiscount !== undefined ? parseFloat(totalDiscount) : undefined,
+          labourCharge: labourCharge !== undefined ? parseFloat(labourCharge) : undefined,
+          consumableCharge: consumableCharge !== undefined ? parseFloat(consumableCharge) : undefined,
+          partCharge: partCharge !== undefined ? parseFloat(partCharge) : undefined,
+          estTotalAmount: estTotalAmount !== undefined ? parseFloat(estTotalAmount) : undefined,
+          adjustment: adjustment !== undefined ? parseFloat(adjustment) : undefined,
+          serviceType,
+          claimType,
+          claimStatus: claimStatus === "true" || claimStatus === true,
+          survivorContact,
+          updatedAt: new Date(),
+          jobOrder: validatedJobOrderId ? { connect: { id: validatedJobOrderId } } : undefined,
+          branch: validatedBranchId ? { connect: { id: validatedBranchId } } : undefined,
+          insurer: validatedInsurerId ? { connect: { id: validatedInsurerId } } : undefined,
+          survivor: validatedSurvivorId ? { connect: { id: validatedSurvivorId } } : undefined,
+          EstimateItem: itemsToUpsert.length > 0 ? {
+            upsert: itemsToUpsert
+          } : undefined
+        },
+        include: this.estimateInclude
+      });
+
+      // Generate and upload PDF to Spaces
+      const finalEstimate = await this.generateAndUploadPDF(updated.id) || updated;
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Estimate updated",
+          data: this.formatEstimate(finalEstimate)
+        }
+      });
+    } catch (err) {
+      logger.error("Update estimate error:", err);
       return res.json({ code: 500, msg: "An error occured", err });
     }
   };
@@ -203,17 +434,67 @@ class EstimateController {
     }
   };
 
+  generateAndUploadPDF = async (id) => {
+    try {
+      const estimate = await prisma.estimate.findUnique({
+        where: { id },
+        include: this.estimateInclude
+      });
+
+      if (!estimate) return null;
+
+      const formatted = this.formatEstimate(estimate);
+      const templateData = this.getTemplateData(formatted);
+      const pdfBuffer = await PDFUtil.generatePDF('estimate', templateData);
+      
+      const fileName = `EST${formatted.estimateNo || id.substring(0, 8)}`;
+      const pdfUrl = await uploadPDFToSpaces(pdfBuffer, fileName, 'estimate');
+      
+      const updated = await prisma.estimate.update({
+        where: { id },
+        data: { estimatePdf: pdfUrl },
+        include: this.estimateInclude
+      });
+      
+      return updated;
+    } catch (err) {
+      logger.error("Failed to generate/upload PDF for estimate:", err);
+      return null;
+    }
+  };
+
   getPage = async (req, res) => {
     try {
-      const { page, size, searchString } = req.body;
+      const { page, size, searchString, status } = req.body;
       const skip = (page - 1) * size;
       const inputValue = searchString || "";
 
+      const statusFilter = status === "APPROVED" 
+        ? {
+            OR: [
+              { estimateStatus: "APPROVED" },
+              { 
+                AND: [
+                  { estimateStatus: "PENDING" },
+                  { EstimateItem: { some: { status: "APPROVED" } } }
+                ]
+              }
+            ]
+          }
+        : (status ? { estimateStatus: status } : {});
+
       const where = {
-        OR: [
-          { estimateNo: { contains: inputValue, mode: 'insensitive' } },
-          { jobOrder: { jobNo: { contains: inputValue, mode: 'insensitive' } } },
-          { jobOrder: { customerPhone: { contains: inputValue, mode: 'insensitive' } } }
+        AND: [
+          {
+            OR: [
+              { estimateNo: { contains: inputValue, mode: 'insensitive' } },
+              { jobOrder: { jobNo: { contains: inputValue, mode: 'insensitive' } } },
+              { jobOrder: { customerPhone: { contains: inputValue, mode: 'insensitive' } } },
+              { jobOrder: { customer: { name: { contains: inputValue, mode: 'insensitive' } } } },
+              { jobOrder: { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } } }
+            ]
+          },
+          statusFilter
         ]
       };
 
@@ -242,6 +523,225 @@ class EstimateController {
     } catch (err) {
       logger.error("Get estimate page error:", err);
       return res.json({ code: 500, msg: "an error occurred" });
+    }
+  };
+
+  updateEstimateStatus = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { type, jobOrder, estimateItems } = req.body;
+      const user = req.user?.id || req.headers["user-id"];
+
+      // 1. Get current estimate
+      const currentEstimate = await prisma.estimate.findUnique({
+        where: { id },
+        include: {
+          EstimateItem: {
+            include: {
+              jobCode: true
+            }
+          }
+        }
+      });
+
+      if (!currentEstimate) {
+        return res.status(404).json({ code: 404, message: "Estimate not found" });
+      }
+
+      // 2. Filter items to update status
+      const itemsToUpdate = estimateItems ? estimateItems.filter(newItem => {
+        const currentItem = currentEstimate.EstimateItem.find(item => item.id === newItem.id);
+        return currentItem && currentItem.status !== newItem.status;
+      }) : [];
+
+      // 3. Update items
+      if (itemsToUpdate.length > 0) {
+        await prisma.$transaction(
+          itemsToUpdate.map(item => prisma.estimateItem.update({
+            where: { id: item.id },
+            data: { status: item.status }
+          }))
+        );
+      }
+
+      // 4. Fetch the estimate with its items and jobCode to recalculate totals
+      const updatedEstimate = await prisma.estimate.findUnique({
+        where: { id },
+        include: {
+          EstimateItem: {
+            include: { jobCode: true }
+          }
+        }
+      });
+
+      if (!updatedEstimate) {
+        throw new Error("Failed to fetch updated estimate");
+      }
+
+      const allApproved = updatedEstimate.EstimateItem.length > 0 && updatedEstimate.EstimateItem.every(item => item.status === "APPROVED");
+      const finalStatus = allApproved ? "APPROVED" : "PENDING";
+
+      // 5. Recalculate totals based on ALL items
+      let newPartCharge = 0;
+      let newLabourCharge = 0;
+      let newConsumableCharge = 0;
+      let newCgstAmount = 0;
+      let newSgstAmount = 0;
+      let newIgstAmount = 0;
+
+      const round = (val) => Math.round((Number(val) + Number.EPSILON) * 100) / 100;
+
+      updatedEstimate.EstimateItem.forEach(item => {
+        const qty = Number(item.quantity) || 0;
+        const rate = Number(item.unitRate) || 0;
+        const itemTotal = round(qty * rate);
+
+        if (item.jobCodeId) {
+          if (item.jobCode && item.jobCode.consumable) {
+            newConsumableCharge += itemTotal;
+          } else {
+            newLabourCharge += itemTotal;
+          }
+        } else {
+          newPartCharge += itemTotal;
+        }
+
+        newCgstAmount += Number(item.cgstAmount) || 0;
+        newSgstAmount += Number(item.sgstAmount) || 0;
+        newIgstAmount += Number(item.igstAmount) || 0;
+      });
+
+      // Include original adjustment (Round Off)
+      const adjustment = Number(currentEstimate.adjustment) || 0;
+      // Formula: Total = (Charges) + IGST + Round Off (Since IGST = CGST + SGST in this project)
+      const newTotalAmount = round(newPartCharge + newLabourCharge + newConsumableCharge + newIgstAmount + adjustment);
+
+      const finalEstimate = await prisma.estimate.update({
+        where: { id },
+        data: {
+          estimateStatus: finalStatus,
+          partCharge: round(newPartCharge),
+          labourCharge: round(newLabourCharge),
+          consumableCharge: round(newConsumableCharge),
+          cgstAmount: round(newCgstAmount),
+          sgstAmount: round(newSgstAmount),
+          igstAmount: round(newIgstAmount),
+          estTotalAmount: newTotalAmount,
+          updatedAt: new Date()
+        },
+        include: this.estimateInclude
+      });
+
+      // 6. Update Job Order status if FULLY approved
+      if (finalStatus === "APPROVED" && jobOrder) {
+        try {
+          await JobOrderController.setStatus({
+             body: { id: jobOrder, type: "Estimation Approved" }
+          }, { json: () => {} });
+        } catch (statusErr) {
+          logger.error("Failed to update JobOrder status from estimate:", statusErr);
+        }
+      }
+
+      // Broadcast update for "instant" UI synchronization
+      broadcastEstimateUpdate({
+        id: finalEstimate.id,
+        jobOrder: jobOrder,
+        status: finalStatus
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Estimate Status Updated Successfully",
+          data: this.formatEstimate(finalEstimate)
+        }
+      });
+
+    } catch (err) {
+      logger.error("Update estimate status error:", err);
+      return res.json({ code: 500, message: "An error occurred" });
+    }
+  };
+
+  deleteEstimate = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const type = req.query.type || req.body.type || "HARD";
+
+      const estimate = await prisma.estimate.findUnique({
+        where: { id },
+        include: { EstimateItem: true }
+      });
+
+      if (!estimate) {
+        return res.status(404).json({
+          code: 404,
+          response: { code: 404, message: "Estimate not found" }
+        });
+      }
+
+      if (type === "SOFT") {
+        await prisma.estimate.update({
+          where: { id },
+          data: { updatedAt: new Date() }
+        });
+        return res.json({
+          code: 200,
+          response: { code: 200, message: "Estimate soft deleted." }
+        });
+      } else {
+        const itemIds = estimate.EstimateItem.map(item => item.id);
+
+        // Delete the estimate (Prisma cleans up implicit join table)
+        await prisma.estimate.delete({
+          where: { id }
+        });
+
+        // Delete items
+        if (itemIds.length > 0) {
+          await prisma.estimateItem.deleteMany({
+            where: { id: { in: itemIds } }
+          });
+        }
+
+        return res.json({
+          code: 200,
+          response: { code: 200, message: "Estimate Invoice deleted permanently." }
+        });
+      }
+    } catch (err) {
+      logger.error("Delete estimate error:", err);
+      return res.json({ code: 500, msg: "An error occured", err });
+    }
+  };
+
+  generatePDF = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const estimate = await prisma.estimate.findUnique({
+        where: { id },
+        include: this.estimateInclude
+      });
+
+      if (!estimate) return res.status(404).json({ code: 404, msg: "Estimate not found" });
+
+      if (estimate.estimatePdf) {
+        return res.redirect(estimate.estimatePdf);
+      }
+
+      // If PDF doesn't exist, generate and upload it
+      const updated = await this.generateAndUploadPDF(id);
+      
+      if (updated && updated.estimatePdf) {
+        return res.redirect(updated.estimatePdf);
+      } else {
+        return res.status(500).json({ code: 500, msg: "Failed to generate PDF URL" });
+      }
+    } catch (err) {
+      logger.error("Generate estimate PDF error:", err);
+      return res.status(500).json({ code: 500, msg: "An error occured while generating PDF", error: err.message });
     }
   };
 }

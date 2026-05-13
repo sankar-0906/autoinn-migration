@@ -140,9 +140,29 @@ class SaleSpareInvoiceController {
       });
 
       if (invoice) {
+        // Fetch related payments manually since there's no direct relation in prisma
+        const payments = await prisma.payment.findMany({
+          where: {
+            moduleId: id,
+            module: "COUNTER_SALES"
+          }
+        });
+        
+        const formattedInvoice = {
+          ...invoice,
+          payments: payments.map(p => ({
+            ...p,
+            billAmount: Number(p.billAmount || 0),
+            collectedAmount: Number(p.collectedAmount || 0)
+          }))
+        };
+
         return res.json({
           code: 200,
-          response: invoice
+          response: {
+             code: 200,
+             data: formattedInvoice
+          }
         });
       }
       return res.status(404).json({ code: 404, msg: "Not found" });
@@ -183,6 +203,55 @@ class SaleSpareInvoiceController {
     } catch (err) {
       logger.error("Get sale spare invoice page error:", err);
       return res.json({ code: 500, msg: "an error occurred" });
+    }
+  };
+
+  updateStatus = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { status } = req.body;
+
+      if (!id || !status) {
+        return res.json({ code: 400, response: { code: 400, message: "Missing id or status" } });
+      }
+
+      // 1. Fetch invoice with related job order
+      const invoice = await prisma.saleSpareInvoice.findUnique({
+        where: { id },
+        include: { jobOrder: true }
+      });
+
+      if (!invoice) {
+        return res.json({ code: 404, response: { code: 404, message: "Job Invoice not found" } });
+      }
+
+      // 2. Update job order status (if linked)
+      if (invoice.jobOrder && invoice.jobOrder.id) {
+        await prisma.jobOrder.update({
+          where: { id: invoice.jobOrder.id },
+          data: { jobStatus: status },
+        });
+      }
+
+      // 3. Update sale spare invoice status
+      const updatedInvoice = await prisma.saleSpareInvoice.update({
+        where: { id },
+        data: { status },
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Job Invoice and Sale Spare Invoice status updated successfully",
+          data: {
+            invoice: updatedInvoice
+          }
+        }
+      });
+    } catch (err) {
+      logger.error("Update sale spare invoice status error:", err);
+      return res.json({ code: 500, response: { code: 500, message: "Failed to update status", data: err } });
     }
   };
 }

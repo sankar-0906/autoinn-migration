@@ -308,11 +308,15 @@ class IdGenerateController {
         return { code: 200, message: "JobOrderId Generated", data: idCreation.text + idCreation.count };
       } else {
         const last = await prisma.jobOrder.findFirst({
-          where: { jobCardId: { startsWith: "JOBNY" } },
+          where: { jobNo: { startsWith: "JOBNY" } },
           orderBy: { createdAt: "desc" }
         });
         let id = 1;
-        if (last && last.jobCardId) id = parseInt(last.jobCardId.slice(5)) + 1;
+        if (last && last.jobNo) {
+           // Improved extraction logic to handle different string lengths
+           const match = last.jobNo.match(/\d+$/);
+           if (match) id = parseInt(match[0]) + 1;
+        }
         const count = id.toLocaleString("en-US", { minimumIntegerDigits: 3, useGrouping: false });
         return { code: 200, message: "JobOrderId Generated", data: "JOBNY" + count };
       }

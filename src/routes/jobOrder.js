@@ -11,6 +11,8 @@ router.post("/", controller.createJobOrder);
 router.get("/vehicleHistory/:id", controller.historyVehicleJobs);
 router.get("/:id", controller.getOne);
 router.post("/get", controller.getPage);
+router.post("/getPendingInProgress", controller.getPendingInProgress);
+router.post("/getJoborder", controller.getJoborder);
 router.post("/getJobNo", controller.getJobNo);
 router.post("/dashboard", controller.getDashboardData);
 router.post("/setStatus", controller.setStatus);
