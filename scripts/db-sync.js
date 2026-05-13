@@ -34,7 +34,8 @@ async function syncDatabase() {
     { target: 'VehicleInventory', column: 'vehiclePurchase', type: 'VARCHAR(25)' },
     { target: 'Transactions', column: 'branch', type: 'VARCHAR(25)' },
     { target: 'Transactions', column: 'physicalQuantity', type: 'INTEGER' },
-    { target: 'Transactions', column: 'accountQuantity', type: 'INTEGER' }
+    { target: 'Transactions', column: 'accountQuantity', type: 'INTEGER' },
+    { target: 'Estimate', column: 'adjustment', type: 'DECIMAL(65,30)' }
   ];
 
   const joinTableRelations = [
@@ -52,7 +53,30 @@ async function syncDatabase() {
     { target: '_PMChasManyPmcParts', column: 'A', type: 'VARCHAR(40)' },
     { target: '_PMChasManyPmcParts', column: 'B', type: 'VARCHAR(40)' },
     { target: '_PMChasManyPmcJobCodes', column: 'A', type: 'VARCHAR(40)' },
-    { target: '_PMChasManyPmcJobCodes', column: 'B', type: 'VARCHAR(40)' }
+    { target: '_PMChasManyPmcJobCodes', column: 'B', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'jobOrder', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'createdBy', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'survivor', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'insurer', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'createdBy', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'partNumber', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'jobCode', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'sac', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'hsn', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'customer', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'createdBy', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'vehicleImage', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'vehicle', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'parts', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'mechanic', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'serviceReminder', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'ramp', type: 'VARCHAR(40)' },
+    { target: 'JobVehicleParts', column: 'id', type: 'VARCHAR(40)' }
   ];
 
   console.log("------------------- DB SYNC START -------------------");

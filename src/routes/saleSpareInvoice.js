@@ -10,5 +10,6 @@ router.use(auth);
 router.post("/", controller.createSaleSpareInvoice);
 router.get("/:id", controller.getOne);
 router.post("/get", controller.getPage);
+router.put("/updateStatus/:id", controller.updateStatus);
 
 export default router;

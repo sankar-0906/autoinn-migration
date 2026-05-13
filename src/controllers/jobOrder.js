@@ -57,7 +57,32 @@ class JobOrderController {
         additionalImages: true
       }
     },
-    accidentalDocuments: true
+    accidentalDocuments: true,
+    estimates: {
+      include: {
+        EstimateItem: {
+          include: {
+            partNumber: { include: { manufacturer: true } },
+            jobCode: { include: { sac: true } },
+            hsn: true,
+            sac: true
+          }
+        },
+        insurer: true,
+        survivor: { include: { CustomerPhone: true } },
+        branch: { include: { manufacturer: true } }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 1
+    },
+    materialIssues: {
+        select: { id: true }
+    },
+    saleSpareInvoices: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        include: { transactions: true }
+    }
   };
 
   /**
@@ -132,6 +157,57 @@ class JobOrderController {
       delete formatted.JobVehicleImage;
     } else {
       formatted.vehicleImage = {};
+    }
+
+    // Map latest estimate to 'Estimate'
+    if (formatted.estimates && formatted.estimates.length > 0) {
+      const estimate = formatted.estimates[0];
+      const formattedEstimate = { ...estimate };
+
+      // Convert Decimal fields to Numbers in Estimate
+      const estimateDecimals = [
+        'discountPercent', 'discountRate', 'cgstAmount', 'sgstAmount', 'igstAmount', 
+        'totalDiscount', 'labourCharge', 'consumableCharge', 'partCharge', 'estTotalAmount', 'adjustment'
+      ];
+      estimateDecimals.forEach(f => {
+        if (formattedEstimate[f] !== undefined && formattedEstimate[f] !== null) {
+          formattedEstimate[f] = Number(formattedEstimate[f]);
+        }
+      });
+
+      // Map EstimateItem to estimateItemInvoice
+      if (formattedEstimate.EstimateItem) {
+        formattedEstimate.estimateItemInvoice = formattedEstimate.EstimateItem.map(item => {
+          const formattedItem = { ...item };
+          const itemDecimals = [
+            'quantity', 'unitRate', 'igst', 'cgst', 'sgst',
+            'igstAmount', 'cgstAmount', 'sgstAmount', 'discountAmount', 'discountPercent'
+          ];
+          itemDecimals.forEach(f => {
+            if (formattedItem[f] !== undefined && formattedItem[f] !== null) {
+              formattedItem[f] = Number(formattedItem[f]);
+            }
+          });
+          return formattedItem;
+        });
+        delete formattedEstimate.EstimateItem;
+      }
+      
+      formatted.Estimate = formattedEstimate;
+      delete formatted.estimates;
+    } else {
+      formatted.Estimate = null;
+      delete formatted.estimates;
+    }
+
+    // Map latest invoice total and payments to 'totalInvoice' and 'payments'
+    if (formatted.saleSpareInvoices && formatted.saleSpareInvoices.length > 0) {
+      const latestInvoice = formatted.saleSpareInvoices[0];
+      formatted.totalInvoice = Number(latestInvoice.totalInvoice || 0);
+      formatted.payments = latestInvoice.transactions || [];
+    } else {
+      formatted.totalInvoice = 0;
+      formatted.payments = [];
     }
 
     return formatted;
@@ -489,12 +565,31 @@ class JobOrderController {
       });
 
       if (jobOrder) {
+        // Fetch related payments manually
+        const payments = await prisma.payment.findMany({
+          where: {
+            moduleId: id,
+            module: "JobOrder"
+          }
+        });
+
+        const formatted = this.formatJobOrder(jobOrder);
+        formatted.payments = payments.map(p => ({
+          ...p,
+          billAmount: Number(p.billAmount || 0),
+          collectedAmount: Number(p.collectedAmount || 0)
+        }));
+
+        const slipCount = jobOrder.materialIssues ? jobOrder.materialIssues.length : 0;
+        delete formatted.materialIssues; // Cleanup from data object
+
         return res.json({
           code: 200,
           response: { 
              code: 200,
              msg: "JobOrder fetched",
-             data: this.formatJobOrder(jobOrder) 
+             data: formatted,
+             currentSlipNumber: slipCount
           }
         });
       }
@@ -506,56 +601,141 @@ class JobOrderController {
     }
   };
 
-  getPage = async (req, res) => {
-    try {
-      const { page, size, searchString, status } = req.body;
-      const branchIds = req.user?.branch || [];
-      const skip = (page - 1) * size;
-      const inputValue = searchString || "";
+  /**
+   * Internal helper for fetching paginated job orders with status filtering.
+   */
+  getJobOrdersInternal = async (data, branchIds) => {
+    const { page, size, searchString, status } = data;
+    const skip = (page - 1) * size;
+    const take = size;
+    const inputValue = searchString || "";
 
-      let statusFilter = {};
-      if (status === "PENDING") {
-        statusFilter = { jobStatus: { in: ["Vehicle Received", "Estimation"] } };
-      } else if (status === "IN PROGRESS") {
-        statusFilter = { jobStatus: { in: ["Mechanic Allocated", "Spares Ordered", "Work In Progress", "Washing", "Final Inspection", "Material Issued"] } };
-      } else if (status === "COMPLETED") {
-        statusFilter = { jobStatus: { in: ["Gate Pass", "Payment Received", "Invoice", "Proforma Invoice", "PAID"] } };
-      }
-
-      const where = {
-        branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] },
-        ...statusFilter,
+    let statusFilter = {};
+    if (status === "PENDING") {
+      statusFilter = { 
         OR: [
-          { jobNo: { contains: inputValue, mode: 'insensitive' } },
-          { serviceType: { contains: inputValue, mode: 'insensitive' } },
-          { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } },
-          { customer: { name: { contains: inputValue, mode: 'insensitive' } } }
+          { jobStatus: "Vehicle Received" },
+          { jobStatus: { contains: "Estimation", mode: 'insensitive' } }
         ]
       };
+    } else if (status === "IN PROGRESS") {
+      statusFilter = { 
+        jobStatus: { 
+          in: ["Mechanic Allocated", "Spares Ordered", "Work In Progress", "Washing", "Final Inspection", "Material Issued"] 
+        } 
+      };
+    } else if (status === "COMPLETED") {
+      statusFilter = { jobStatus: { in: ["Gate Pass", "Payment Received", "Invoice", "Proforma Invoice", "PAID"] } };
+    } else if (status) {
+      statusFilter = { jobStatus: status };
+    }
 
-      const [jobOrders, count] = await Promise.all([
-        prisma.jobOrder.findMany({
-          where,
-          take: size,
-          skip,
-          orderBy: { createdAt: 'desc' },
-          include: this.fragment
-        }),
-        prisma.jobOrder.count({ where })
-      ]);
+    const where = {
+      AND: [
+        { branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        statusFilter,
+        {
+          OR: [
+            { jobNo: { contains: inputValue, mode: 'insensitive' } },
+            { serviceType: { contains: inputValue, mode: 'insensitive' } },
+            { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } },
+            { vehicle: { chassisNo: { contains: inputValue, mode: 'insensitive' } } },
+            { vehicle: { engineNo: { contains: inputValue, mode: 'insensitive' } } },
+            { customer: { name: { contains: inputValue, mode: 'insensitive' } } },
+            { 
+              customer: { 
+                CustomerPhone: { 
+                  some: { phone: { contains: inputValue, mode: 'insensitive' } } 
+                } 
+              } 
+            }
+          ]
+        }
+      ]
+    };
+
+    const [jobOrders, count] = await Promise.all([
+      prisma.jobOrder.findMany({
+        where,
+        take,
+        skip,
+        orderBy: { createdAt: 'desc' },
+        include: this.fragment
+      }),
+      prisma.jobOrder.count({ where })
+    ]);
+
+    // Fetch payments for these job orders manually
+    const jobOrderIds = jobOrders.map(j => j.id);
+    const allPayments = await prisma.payment.findMany({
+      where: {
+        moduleId: { in: jobOrderIds },
+        module: "JobOrder"
+      }
+    });
+
+    const formattedData = jobOrders.map(jo => {
+      const jobPayments = allPayments.filter(p => p.moduleId === jo.id);
+      const formatted = this.formatJobOrder(jo);
+      formatted.payments = jobPayments.map(p => ({
+        ...p,
+        billAmount: Number(p.billAmount || 0),
+        collectedAmount: Number(p.collectedAmount || 0)
+      }));
+      return formatted;
+    });
+
+    return { count, jobOrder: formattedData };
+  };
+
+  getPage = async (req, res) => {
+    try {
+      const branchIds = req.user?.branch || [];
+      const data = await this.getJobOrdersInternal(req.body, branchIds);
 
       return res.json({
         code: 200,
         response: { 
           code: 200,
           msg: "JobOrders fetched",
-          data: { count, jobOrder: jobOrders.map(j => this.formatJobOrder(j)) } 
+          data
         }
       });
     } catch (err) {
       logger.error("Get job order page error:", err);
-      console.error("GetPage JobOrder Error Stack:", err.stack);
       return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  getPendingInProgress = async (req, res) => {
+    try {
+      const { body } = req;
+      let branchIds = body.branch || req.user?.branch || [];
+      if (typeof branchIds === 'string') branchIds = [branchIds];
+      
+      const [pendingResult, inProgressResult] = await Promise.all([
+        this.getJobOrdersInternal({ ...body, status: "PENDING" }, branchIds),
+        this.getJobOrdersInternal({ ...body, status: "IN PROGRESS" }, branchIds)
+      ]);
+
+      const mergedJobOrders = [
+        ...(pendingResult.jobOrder || []),
+        ...(inProgressResult.jobOrder || [])
+      ];
+
+      const totalCount = (pendingResult.count || 0) + (inProgressResult.count || 0);
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          msg: "Pending & In Progress Job Orders fetched",
+          data: { count: totalCount, jobOrder: mergedJobOrders }
+        }
+      });
+    } catch (err) {
+      logger.error("Get pending/in-progress job orders error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
     }
   };
 
@@ -1022,6 +1202,65 @@ class JobOrderController {
       });
     } catch (err) {
       logger.error("Update mechanic error:", err);
+      return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+
+  getJoborder = async (req, res) => {
+    try {
+      const { mobileNo } = req.body;
+      const customers = await prisma.customer.findMany({
+        where: {
+          CustomerPhone: {
+            some: { phone: mobileNo }
+          }
+        },
+        include: {
+          Vehicle: {
+            include: {
+              color: true,
+              vehicleMaster: true
+            }
+          }
+        }
+      });
+
+      if (customers.length > 0) {
+        const customer = customers[0];
+        const formatted = {
+          id: customer.id,
+          purchasedVehicle: customer.Vehicle.map(v => ({
+            id: v.id,
+            registerNo: v.registerNo,
+            chassisNo: v.chassisNo,
+            batteryNo: v.batteryNo,
+            engineNo: v.engineNo,
+            color: v.color,
+            vehicle: v.vehicleMaster ? {
+              id: v.vehicleMaster.id,
+              modelName: v.vehicleMaster.modelName,
+              modelCode: v.vehicleMaster.modelCode
+            } : null,
+            dateOfSale: v.dateOfSale,
+            serviceCouponNumber: v.serviceCouponNumber
+          }))
+        };
+
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            message: "Getting Job Order",
+            data: formatted
+          }
+        });
+      }
+      return res.json({ 
+        code: 200, 
+        response: { code: 404, message: "Customer not found" } 
+      });
+    } catch (err) {
+      logger.error("Get job order by mobile error:", err);
       return res.json({ code: 500, msg: "An error occurred" });
     }
   };

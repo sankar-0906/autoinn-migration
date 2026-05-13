@@ -112,6 +112,15 @@ router.post("/saleSpareInvoice", async (req, res) => {
   }
 });
 
+router.post("/salesSpares", async (req, res) => {
+  try {
+    const response = await IdGenerateController.saleSpareInvoiceIdGenerate(req.body);
+    res.json({ code: 200, response });
+  } catch (err) {
+    res.json({ code: 500, msg: "An error occured", err });
+  }
+});
+
 router.post("/jobInvoice", async (req, res) => {
   try {
     const response = await IdGenerateController.jobInvoiceIdGenerate(req.body);

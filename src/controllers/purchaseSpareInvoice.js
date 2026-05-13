@@ -36,8 +36,32 @@ class PurchaseSpareInvoiceController {
   transformInvoice = (invoice) => {
     if (!invoice) return invoice;
     const transformed = { ...invoice };
+
+    // Convert decimal fields to numbers for the main invoice object
+    const decimalFields = [
+      "discountPercent", "discountRate", "tcs", "cgst", "sgst", "igst",
+      "totalDiscount", "adjustment", "totalInvoice"
+    ];
+    decimalFields.forEach(field => {
+      if (transformed[field] !== undefined && transformed[field] !== null) {
+        transformed[field] = Number(transformed[field]);
+      }
+    });
+
     if (transformed.PurchaseSpareInvoiceItem) {
-      transformed.purchaseItemInvoice = transformed.PurchaseSpareInvoiceItem;
+      transformed.purchaseItemInvoice = transformed.PurchaseSpareInvoiceItem.map(item => {
+        const formattedItem = { ...item };
+        const itemDecimals = [
+          "quantity", "unitRate", "igst", "cgst", "sgst", "gstRate",
+          "igstAmount", "cgstAmount", "sgstAmount", "discountAmount", "discountPercent"
+        ];
+        itemDecimals.forEach(f => {
+          if (formattedItem[f] !== undefined && formattedItem[f] !== null) {
+            formattedItem[f] = Number(formattedItem[f]);
+          }
+        });
+        return formattedItem;
+      });
       delete transformed.PurchaseSpareInvoiceItem;
     }
     return transformed;
@@ -49,7 +73,8 @@ class PurchaseSpareInvoiceController {
         invoiceNumber, invoiceDate, supplier, supplierName, itemRate, itemrate,
         discountType, discountPercent, discountRate, tcs,
         cgst, sgst, igst, totalDiscount, adjustment, totalInvoice,
-        purchaseItemInvoice, psiNo, branch
+        purchaseItemInvoice, psiNo, branch,
+        cgstAmount, sgstAmount, igstAmount
       } = req.body;
       const finalSupplier = supplier || supplierName;
       const finalItemRate = itemRate || itemrate;
@@ -79,9 +104,9 @@ class PurchaseSpareInvoiceController {
             discountPercent: parseFloat(discountPercent) || 0,
             discountRate: parseFloat(discountRate) || 0,
             tcs: parseFloat(tcs) || 0,
-            cgst: parseFloat(cgst) || 0,
-            sgst: parseFloat(sgst) || 0,
-            igst: parseFloat(igst) || 0,
+            cgst: parseFloat(cgst || cgstAmount) || 0,
+            sgst: parseFloat(sgst || sgstAmount) || 0,
+            igst: parseFloat(igst || igstAmount) || 0,
             totalDiscount: parseFloat(totalDiscount) || 0,
             adjustment: parseFloat(adjustment) || 0,
             totalInvoice: parseFloat(totalInvoice) || 0,
@@ -197,7 +222,8 @@ class PurchaseSpareInvoiceController {
         invoiceNumber, invoiceDate, supplier, supplierName, itemRate, itemrate,
         discountType, discountPercent, discountRate, tcs,
         cgst, sgst, igst, totalDiscount, adjustment, totalInvoice,
-        purchaseItemInvoice, psiNo, branch
+        purchaseItemInvoice, psiNo, branch,
+        cgstAmount, sgstAmount, igstAmount
       } = req.body;
       const finalSupplier = supplier || supplierName;
       const finalItemRate = itemRate || itemrate;
@@ -250,9 +276,9 @@ class PurchaseSpareInvoiceController {
             discountPercent: parseFloat(discountPercent) || 0,
             discountRate: parseFloat(discountRate) || 0,
             tcs: parseFloat(tcs) || 0,
-            cgst: parseFloat(cgst) || 0,
-            sgst: parseFloat(sgst) || 0,
-            igst: parseFloat(igst) || 0,
+            cgst: parseFloat(cgst || cgstAmount) || 0,
+            sgst: parseFloat(sgst || sgstAmount) || 0,
+            igst: parseFloat(igst || igstAmount) || 0,
             totalDiscount: parseFloat(totalDiscount) || 0,
             adjustment: parseFloat(adjustment) || 0,
             totalInvoice: parseFloat(totalInvoice) || 0,
@@ -420,6 +446,27 @@ class PurchaseSpareInvoiceController {
     }
   };
 
+  getAll = async (req, res) => {
+    try {
+      const invoices = await prisma.purchaseSpareInvoice.findMany({
+        include: this.invoiceInclude,
+        orderBy: { createdAt: 'desc' }
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Purchase Spare Invoices fetched",
+          data: invoices.map(inv => this.transformInvoice(inv))
+        }
+      });
+    } catch (err) {
+      logger.error("Get all purchase spare invoices error:", err);
+      return res.json({ code: 500, msg: "an error occurred" });
+    }
+  };
+
   getPage = async (req, res) => {
     try {
       const { page, size, searchString, branch } = req.body;
@@ -478,6 +525,68 @@ class PurchaseSpareInvoiceController {
     } catch (err) {
       logger.error("Check duplicate invoice error:", err);
       return res.json({ code: 500, msg: "An error occured" });
+    }
+  };
+
+  /**
+   * Search for parts to add to a purchase spare invoice.
+   * Matches getPartDetailsOnSearch in legacy.
+   */
+  getPartDetailsOnSearch = async (req, res) => {
+    try {
+      const { search } = req.body;
+      const inputValue = search || "";
+
+      if (!inputValue) {
+        return res.json({
+          code: 200,
+          msg: "parts Master Data fetched",
+          data: { partsMasterData: [] }
+        });
+      }
+
+      const tCased = await titleCase(inputValue);
+
+      const parts = await prisma.partsMaster.findMany({
+        where: {
+          OR: [
+            { partNumber: { contains: inputValue, mode: 'insensitive' } },
+            { partName: { contains: inputValue, mode: 'insensitive' } },
+            { partName: { contains: tCased, mode: 'insensitive' } }
+          ]
+        },
+        take: 100,
+        include: {
+          hsn: true,
+          manufacturer: true,
+          vehicleSuit: {
+            include: {
+              VehicleMaster: true
+            }
+          }
+        }
+      });
+
+      const formattedParts = parts.map(p => ({
+        ...p,
+        vehicleSuit: (p.vehicleSuit || []).map(suit => ({
+          ...suit,
+          vehicle: suit.VehicleMaster || null
+        }))
+      }));
+
+      return res.json({
+        code: 200,
+        msg: "parts Master Data fetched",
+        response: {
+          code: 200,
+          msg: "parts Master Data fetched",
+          data: { partsMasterData: formattedParts }
+        }
+      });
+    } catch (err) {
+      logger.error("Search parts error in purchase invoice:", err);
+      return res.json({ code: 500, message: "error getting all partsMasterData", data: err.message });
     }
   };
 }

@@ -5,7 +5,7 @@ import JWT from "../services/jwt.service.js";
  * Simplified version (No Redis for now) to enable Postman testing.
  */
 export const auth = async (req, res, next) => {
-  const token = req.headers["x-access-token"];
+  const token = req.headers["x-access-token"] || req.query.token;
 
   try {
     if (!token) {

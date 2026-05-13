@@ -32,7 +32,11 @@ export const broadcastMissedCallNotification = (callData) => {
 };
 
 export const broadcastEstimateUpdate = (data) => {
-  if (!ioInstance) return;
+  if (!ioInstance) {
+    logger.warn("Socket.io instance not initialized, cannot broadcast estimate update.");
+    return;
+  }
+  logger.info(`Broadcasting estimate update to all clients: ${JSON.stringify(data)}`);
   ioInstance.emit("estimateUpdate", {
     type: "estimateUpdate",
     data: data,
@@ -102,11 +106,12 @@ export const setupTeleCMISocket = (server) => {
     if (!token) return next(new Error("No token provided"));
 
     try {
-      const decoded = JWT.verify(token);
+      const decoded = await JWT.verify(token);
       if (!decoded || !decoded.id) return next(new Error("Invalid token"));
       socket.userId = decoded.id;
       return next();
     } catch (err) {
+      logger.error("Socket authentication error:", err);
       return next(new Error("Token decode error"));
     }
   });

@@ -59,6 +59,7 @@ import adjustSparesInventoryRoutes from "./adjustSparesInventory.js";
 import inventoryTransfersRoutes from "./inventoryTransfers.js";
 import numberPlateRoutes from "./numberPlate.js";
 import paymentRoutes from "./payment.js";
+import rampRoutes from "./ramp.js";
 
 const router = Router();
 
@@ -127,5 +128,6 @@ router.use("/inventoryTransfers", inventoryTransfersRoutes);
 router.use("/numberPlate", numberPlateRoutes);
 router.use("/numberplate", numberPlateRoutes);
 router.use("/payment", paymentRoutes);
+router.use("/ramp", rampRoutes);
 
 export default router;

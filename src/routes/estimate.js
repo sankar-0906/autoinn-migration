@@ -8,7 +8,11 @@ const router = Router();
 router.use(auth);
 
 router.post("/", controller.createEstimate);
+router.put("/:id", controller.updateEstimate);
+router.put("/setEst/:id", controller.updateEstimateStatus);
 router.get("/:id", controller.getOne);
 router.post("/get", controller.getPage);
+router.delete("/:id", controller.deleteEstimate);
+router.get("/generatePDF/:id", controller.generatePDF);
 
 export default router;
