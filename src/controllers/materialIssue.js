@@ -353,6 +353,23 @@ class MaterialIssueController {
         include: this.fragment
       });
 
+      // Update Job Order status and Create Log (Legacy parity)
+      if (jobOrder) {
+        await prisma.jobOrder.update({
+          where: { id: jobOrder },
+          data: { jobStatus: "Material" }
+        });
+
+        await prisma.jobOrderLog.create({
+          data: {
+            jobOrder: jobOrder,
+            event: "Material",
+            data: materialIssue.id,
+            createdAt: new Date()
+          }
+        });
+      }
+
       // Update inventory and create transactions
       for (let item of materialItemInvoice) {
         if (item.partNumber?.id && branch) {

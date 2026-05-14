@@ -94,6 +94,7 @@ router.use("/vehicle", soldVehicleRoutes);
 router.use("/jobCode", jobCodeRoutes);
 router.use("/estimate", estimateRoutes);
 router.use("/jobInvoice", jobInvoiceRoutes);
+router.use("/jobinvoice", jobInvoiceRoutes);
 router.use("/saleSpareInvoice", saleSpareInvoiceRoutes);
 router.use("/gstVerify", gstVerifyRoutes);
 router.use("/pdfGenerate", pdfGenerateRoutes);

@@ -32,7 +32,10 @@ async function syncDatabase() {
     { target: 'VehicleInventory', column: 'color', type: 'VARCHAR(25)' },
     { target: 'VehicleInventory', column: 'vehicle', type: 'VARCHAR(25)' },
     { target: 'VehicleInventory', column: 'vehiclePurchase', type: 'VARCHAR(25)' },
-    { target: 'Transactions', column: 'branch', type: 'VARCHAR(25)' }
+    { target: 'Transactions', column: 'branch', type: 'VARCHAR(25)' },
+    { target: 'Transactions', column: 'physicalQuantity', type: 'INTEGER' },
+    { target: 'Transactions', column: 'accountQuantity', type: 'INTEGER' },
+    { target: 'Estimate', column: 'adjustment', type: 'DECIMAL(65,30)' }
   ];
 
   const joinTableRelations = [
@@ -50,7 +53,40 @@ async function syncDatabase() {
     { target: '_PMChasManyPmcParts', column: 'A', type: 'VARCHAR(40)' },
     { target: '_PMChasManyPmcParts', column: 'B', type: 'VARCHAR(40)' },
     { target: '_PMChasManyPmcJobCodes', column: 'A', type: 'VARCHAR(40)' },
-    { target: '_PMChasManyPmcJobCodes', column: 'B', type: 'VARCHAR(40)' }
+    { target: '_PMChasManyPmcJobCodes', column: 'B', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'jobOrder', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'createdBy', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'survivor', type: 'VARCHAR(40)' },
+    { target: 'Estimate', column: 'insurer', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'createdBy', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'partNumber', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'jobCode', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'sac', type: 'VARCHAR(40)' },
+    { target: 'EstimateItem', column: 'hsn', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'customer', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'createdBy', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'vehicleImage', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'vehicle', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'parts', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'mechanic', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'serviceReminder', type: 'VARCHAR(40)' },
+    { target: 'JobOrder', column: 'ramp', type: 'VARCHAR(40)' },
+    { target: 'JobVehicleParts', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'partyName', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'jobOrder', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'hsn', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'partNumber', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'sac', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'jobCode', type: 'VARCHAR(40)' }
   ];
 
   console.log("------------------- DB SYNC START -------------------");
@@ -66,7 +102,7 @@ async function syncDatabase() {
       ORDER BY CASE WHEN table_schema = '${preferredSchema}' THEN 0 ELSE 1 END
       LIMIT 1;
     `);
-    
+
     if (results.length > 0) {
       return `"${results[0].table_schema}"."${tableName}"`;
     }
@@ -120,7 +156,7 @@ async function syncDatabase() {
       }
 
       console.log(`Migrating relation ${item.target}.${item.column} from ${joinTable}...`);
-      
+
       await prisma.$executeRawUnsafe(`
         ALTER TABLE ${targetTable} 
         ADD COLUMN IF NOT EXISTS "${item.column}" VARCHAR(25);
@@ -132,8 +168,19 @@ async function syncDatabase() {
         FROM ${joinTable} j
         WHERE t.id = j."${item.childCol}";
       `);
-      
+
       console.log(`✅ Success: Migrated ${item.joinTable} -> ${item.target}.${item.column}`);
+
+      // BACKFILL: Link items back to their parent if join table has data
+      if (item.target === 'PurchaseSpareInvoiceItem' && item.column === 'purchaseSpareInvoice') {
+        console.log("Backfilling links from Items to PurchaseSpareInvoice...");
+        await prisma.$executeRawUnsafe(`
+          UPDATE ${targetTable} t
+          SET "${item.column}" = j."${item.parentCol}"
+          FROM ${joinTable} j
+          WHERE t.id = j."${item.childCol}" AND (t."${item.column}" IS NULL OR t."${item.column}" = '');
+        `);
+      }
     } catch (err) {
       console.error(`❌ Error migrating relation ${item.target}.${item.column}:`, err.message);
     }
@@ -152,7 +199,7 @@ async function syncDatabase() {
       }
 
       console.log(`Migrating array ${item.target}.${item.column} from ${sourceTable}...`);
-      
+
       await prisma.$executeRawUnsafe(`
         ALTER TABLE ${targetTable} 
         ADD COLUMN IF NOT EXISTS "${item.column}" text[];
@@ -166,7 +213,7 @@ async function syncDatabase() {
           WHERE s."nodeId" = t.id
         );
       `);
-      
+
       console.log(`✅ Success: Migrated ${item.source} -> ${item.target}.${item.column}`);
     } catch (err) {
       console.error(`❌ Error migrating ${item.target}.${item.column}:`, err.message);
@@ -187,11 +234,8 @@ async function syncDatabase() {
       WHERE contype = 'f' 
         AND pg_get_constraintdef(oid) LIKE '%SET NULL%';
     `);
-    
+
     console.log(`Debug: Found ${allSetNull.length} total SET NULL constraints in DB.`);
-    // if (allSetNull.length > 0) {
-    //   console.log("Sample constraint definition:", allSetNull[0].definition);
-    // }
 
     const constraints = await prisma.$queryRawUnsafe(`
       SELECT 
@@ -208,16 +252,16 @@ async function syncDatabase() {
 
     for (const con of constraints) {
       const { table_name, constraint_name, definition } = con;
-      
+
       // Match definition: FOREIGN KEY (col) REFERENCES "schema"."Table"(id) ON DELETE SET NULL
       const match = definition.match(/FOREIGN KEY \((.*?)\) REFERENCES (.*?) ON DELETE SET NULL/i);
-      
+
       if (match) {
         const column = match[1];
         const referenced = match[2];
-        
+
         console.log(`Fixing ${table_name}.${constraint_name} (${column} -> ${referenced})...`);
-        
+
         try {
           // Drop old constraint and add new one with ON DELETE RESTRICT
           // Note: table_name from regclass is already quoted if needed
@@ -236,6 +280,49 @@ async function syncDatabase() {
     }
   } catch (err) {
     console.error("❌ Error in constraint fixing step:", err.message);
+  }
+
+  // 6. Final Data Backfills
+  try {
+    console.log("Running final data backfills...");
+    
+    // Backfill branch for PurchaseSpareInvoice from its items
+    await prisma.$executeRawUnsafe(`
+      UPDATE "${TARGET_SCHEMA}"."PurchaseSpareInvoice" p
+      SET "branch" = (
+        SELECT i.branch 
+        FROM "${TARGET_SCHEMA}"."PurchaseSpareInvoiceItem" i 
+        WHERE i."purchaseSpareInvoice" = p.id AND i.branch IS NOT NULL
+        LIMIT 1
+      )
+      WHERE p.branch IS NULL OR p.branch = '';
+    `);
+
+    // Assign default branch to any remaining orphans
+    const defaultBranch = 'ck8g589vj499008806oh90nmx'; // Devanahalli
+    await prisma.$executeRawUnsafe(`
+      UPDATE "${TARGET_SCHEMA}"."PurchaseSpareInvoice"
+      SET branch = '${defaultBranch}'
+      WHERE branch IS NULL OR branch = '';
+    `);
+
+    // Update Supplier types to ensure visibility in dropdowns (VEHICLE/SPARES)
+    await prisma.$executeRawUnsafe(`
+      UPDATE "${TARGET_SCHEMA}"."Supplier"
+      SET "supplierType" = ARRAY['VEHICLE', 'SPARES']
+      WHERE "supplierType" IS NULL OR "supplierType" = '{}';
+    `);
+
+    // Ensure Manufacturers are flagged as vehicle manufacturers for dropdowns
+    await prisma.$executeRawUnsafe(`
+      UPDATE "${TARGET_SCHEMA}"."Manufacturer"
+      SET "vehicleManufacturer" = true
+      WHERE "vehicleManufacturer" IS NULL;
+    `);
+
+    console.log("✅ Data backfills complete.");
+  } catch (err) {
+    console.error("❌ Error in backfill step:", err.message);
   }
 
   console.log("------------------- DB SYNC COMPLETE -------------------");
