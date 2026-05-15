@@ -265,7 +265,38 @@ class InventoryTransfersController {
             });
           }
 
-          // 4. Log transfer
+          // 4. Log transfer records in Transactions table for History
+          // Source Branch Reduction
+          await tx.transactions.create({
+            data: {
+              createdAt: now,
+              type: "Transfer Out",
+              Quantity: parseInt(quantity),
+              status: "SUB",
+              color: "red",
+              Part: { connect: { id: partNo } },
+              branch: { connect: { id: from_branch } },
+              physicalQuantity: parseInt(quantity),
+              accountQuantity: parseInt(quantity)
+            }
+          });
+
+          // Destination Branch Increase
+          await tx.transactions.create({
+            data: {
+              createdAt: now,
+              type: "Transfer In",
+              Quantity: parseInt(quantity),
+              status: "ADD",
+              color: "green",
+              Part: { connect: { id: partNo } },
+              branch: { connect: { id: to_branch } },
+              physicalQuantity: parseInt(quantity),
+              accountQuantity: parseInt(quantity)
+            }
+          });
+
+          // 5. Log transfer in transfer history table
           await tx.spareInventoryTransfer.create({
             data: {
               id: nanoid(20),

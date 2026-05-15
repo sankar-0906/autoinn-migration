@@ -3,8 +3,10 @@ import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
 import moment from "moment";
 import QRCode from "qrcode";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 import IdGenerateController from "./idGenerate.js";
+import JobOrderLogController from "./jobOrderLog.js";
 import PDFUtil from "../utils/pdf.util.js";
 import { uploadPDFToSpaces } from "../utils/spaces.util.js";
 
@@ -386,6 +388,10 @@ class JobOrderController {
       // Increment ID counter
       await IdGenerateController.incrementId("JOBORDER", branchId);
 
+      // Create Logs
+      await JobOrderLogController.createInternalLog(created.id, "Job Order Created");
+      await JobOrderLogController.createInternalLog(created.id, "Vehicle Received");
+
       return res.json({
         code: 200,
         response: {
@@ -609,7 +615,7 @@ class JobOrderController {
    * Internal helper for fetching paginated job orders with status filtering.
    */
   getJobOrdersInternal = async (data, branchIds) => {
-    const { page, size, searchString, status } = data;
+    const { page, size, searchString, status, filter } = data;
     const skip = (page - 1) * size;
     const take = size;
     const inputValue = searchString || "";
@@ -654,12 +660,36 @@ class JobOrderController {
         ]
       };
     }
+    
+    let advanceFilter = [];
+    if (filter) {
+      if (filter.model && filter.model.length > 0) advanceFilter.push({ vehicle: { vehicleMasterId: { in: filter.model } } });
+      if (filter.serviceType && filter.serviceType.length > 0) advanceFilter.push({ serviceType: { in: filter.serviceType } });
+      if (filter.mechanic && filter.mechanic.length > 0) advanceFilter.push({ mechanicId: { in: filter.mechanic } });
+      if (filter.jobStatus && filter.jobStatus.length > 0) advanceFilter.push({ jobStatus: { in: filter.jobStatus } });
+      if (filter.registerNo) advanceFilter.push({ vehicle: { registerNo: { contains: filter.registerNo, mode: 'insensitive' } } });
+      
+      if (filter.from || filter.to) {
+        const dateFilter = {};
+        if (filter.from) dateFilter.gte = filter.from;
+        if (filter.to) dateFilter.lte = filter.to;
+        advanceFilter.push({ createdAt: dateFilter });
+      }
+
+      if (filter.serviceKmFrom !== undefined && filter.serviceKmFrom !== null || filter.serviceKmTo !== undefined && filter.serviceKmTo !== null) {
+        const kmsFilter = {};
+        if (filter.serviceKmFrom !== undefined && filter.serviceKmFrom !== null) kmsFilter.gte = filter.serviceKmFrom;
+        if (filter.serviceKmTo !== undefined && filter.serviceKmTo !== null) kmsFilter.lte = filter.serviceKmTo;
+        advanceFilter.push({ kms: kmsFilter });
+      }
+    }
 
     const where = {
       AND: [
-        { branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        branchIds.length > 0 ? { branchId: { in: branchIds } } : {},
         statusFilter,
-        searchFilter
+        searchFilter,
+        ...advanceFilter
       ]
     };
 
@@ -699,8 +729,7 @@ class JobOrderController {
 
   getPage = async (req, res) => {
     try {
-      let branchIds = req.body.branch || req.user?.branch || [];
-      if (typeof branchIds === 'string') branchIds = [branchIds];
+      const branchIds = normalizeBranchIds(req.body.branch, req.user?.branch);
       
       const data = await this.getJobOrdersInternal(req.body, branchIds);
 
@@ -721,8 +750,7 @@ class JobOrderController {
   getPendingInProgress = async (req, res) => {
     try {
       const { body } = req;
-      let branchIds = body.branch || req.user?.branch || [];
-      if (typeof branchIds === 'string') branchIds = [branchIds];
+      const branchIds = normalizeBranchIds(body.branch, req.user?.branch);
       
       const [pendingResult, inProgressResult] = await Promise.all([
         this.getJobOrdersInternal({ ...body, status: "PENDING" }, branchIds),

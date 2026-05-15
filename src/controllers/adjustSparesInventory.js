@@ -100,7 +100,7 @@ class AdjustSparesInventoryController {
           skip,
           orderBy: { createdAt: 'desc' },
           include: this.adjustInclude
-        }),
+         }),
         prisma.adjustSparesInventory.count({ where })
       ]);
 
@@ -170,6 +170,24 @@ class AdjustSparesInventoryController {
               accQuantity: parseInt(newQuantity) || 0,
               partNo: { connect: { id: partNo } },
               branch: { connect: { id: branchId } }
+            }
+          });
+        }
+
+        // 3. Create Transaction for History
+        const diff = (parseInt(newQuantity) || 0) - (parseInt(availableQuantity) || 0);
+        if (diff !== 0) {
+          await tx.transactions.create({
+            data: {
+              createdAt: new Date(),
+              type: "Manual Adjustment",
+              Quantity: Math.abs(diff),
+              status: diff > 0 ? "ADD" : "SUB",
+              color: diff > 0 ? "green" : "red",
+              branch: { connect: { id: branchId } },
+              Part: { connect: { id: partNo } },
+              physicalQuantity: Math.abs(diff),
+              accountQuantity: Math.abs(diff)
             }
           });
         }
