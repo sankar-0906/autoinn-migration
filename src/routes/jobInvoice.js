@@ -18,5 +18,7 @@ router.post("/get", controller.getPage);
 router.put("/updateStatus/:id", controller.updateStatus);
 router.post("/updateStatus", controller.updateStatus);
 router.post("/saveFeedback", controller.saveFeedback);
+router.delete("/deleteFeedback/:id", controller.deleteFeedback);
+router.post("/scheduled", controller.getScheduled);
 
 export default router;

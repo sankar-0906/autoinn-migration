@@ -21,7 +21,8 @@ class SoldVehicleController {
       include: { insurance: true, file: true }
     },
     services: true,
-    jobOrder: true
+    jobOrder: true,
+    manufacturer: true
   };
 
   createSoldVehicle = async (req, res) => {
@@ -175,7 +176,7 @@ class SoldVehicleController {
    */
   formatVehicle(v) {
     if (!v) return null;
-    const { Customer, VehicleInsurance, vehicleMaster, ...rest } = v;
+    const { Customer, VehicleInsurance, vehicleMaster, manufacturer, ...rest } = v;
     
     const customer = (Customer || []).map(c => ({
       id: c.id,
@@ -203,7 +204,8 @@ class SoldVehicleController {
       ...rest,
       vehicle: formattedVehicleMaster,
       customer,
-      insurance
+      insurance,
+      manufacturer
     };
   }
 

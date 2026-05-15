@@ -153,6 +153,8 @@ class PurchaseSpareInvoiceController {
               createdAt: new Date(),
               type: "Purchase Spare Invoice",
               Quantity: parseInt(qty),
+              status: "ADD",
+              color: "green",
               Part: { connect: { id: partId } },
               branch: { connect: { id: branchId } },
               sparesPurchase: { connect: { id: created.id } }
@@ -329,6 +331,8 @@ class PurchaseSpareInvoiceController {
               createdAt: new Date(),
               type: "Purchase Spare Invoice (Updated)",
               Quantity: parseInt(qty),
+              status: "ADD",
+              color: "green",
               Part: { connect: { id: partId } },
               branch: { connect: { id: branchId } },
               sparesPurchase: { connect: { id: updated.id } }

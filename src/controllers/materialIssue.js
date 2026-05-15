@@ -1,5 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
+import JobOrderLogController from "./jobOrderLog.js";
 
 /**
  * Controller for Material Issue (Parts issued to Job Orders).
@@ -169,30 +171,33 @@ class MaterialIssueController {
 
   getPage = async (req, res) => {
     try {
-      const { page = 1, size = 10, searchString = "" } = req.body;
+      const { page = 1, size = 10, searchString = "", branch } = req.body;
       const skip = (parseInt(page) - 1) * parseInt(size);
       const take = parseInt(size);
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
 
-      let where = {};
-      if (searchString) {
-        const search = searchString.toLowerCase();
-        where = {
-          OR: [
-            {
-              job: {
-                OR: [
-                  { jobNo: { contains: search, mode: 'insensitive' } },
-                  { customer: { name: { contains: search, mode: 'insensitive' } } },
-                  { customerPhone: { contains: search, mode: 'insensitive' } },
-                  { vehicle: { registerNo: { contains: search, mode: 'insensitive' } } },
-                  { vehicle: { chassisNo: { contains: search, mode: 'insensitive' } } },
-                  { vehicle: { engineNo: { contains: search, mode: 'insensitive' } } }
-                ]
+      const search = searchString.toLowerCase();
+      let where = {
+        AND: [
+          branchIds.length > 0 ? { branchId: { in: branchIds } } : {},
+          searchString ? {
+            OR: [
+              {
+                job: {
+                  OR: [
+                    { jobNo: { contains: search, mode: 'insensitive' } },
+                    { customer: { name: { contains: search, mode: 'insensitive' } } },
+                    { customerPhone: { contains: search, mode: 'insensitive' } },
+                    { vehicle: { registerNo: { contains: search, mode: 'insensitive' } } },
+                    { vehicle: { chassisNo: { contains: search, mode: 'insensitive' } } },
+                    { vehicle: { engineNo: { contains: search, mode: 'insensitive' } } }
+                  ]
+                }
               }
-            }
-          ]
-        };
-      }
+            ]
+          } : {}
+        ]
+      };
 
       const [materials, count] = await Promise.all([
         prisma.materialIssue.findMany({
@@ -360,14 +365,7 @@ class MaterialIssueController {
           data: { jobStatus: "Material Issued" }
         });
 
-        await prisma.jobOrderLog.create({
-          data: {
-            jobOrder: jobOrder,
-            event: "Material",
-            data: materialIssue.id,
-            createdAt: new Date()
-          }
-        });
+        await JobOrderLogController.createInternalLog(jobOrder, "Material Issued", materialIssue.id);
       }
 
       // Update inventory and create transactions
@@ -392,7 +390,8 @@ class MaterialIssueController {
               data: {
                 type: "JobCard Material Invoice",
                 Quantity: Math.round(parseFloat(item.quantity || 0)),
-                status: "False",
+                status: "SUB",
+                color: "red",
                 Part: { connect: { id: item.partNumber.id } },
                 branch: branch ? { connect: { id: branch } } : undefined,
                 sparesMaterialSale: { connect: { id: materialIssue.id } },
@@ -461,7 +460,7 @@ class MaterialIssueController {
           await prisma.transactions.deleteMany({
             where: {
               sparesMaterialSale: { id: id },
-              Part: { id: mpi.partId }
+              partId: mpi.partId
             }
           });
           // Delete part issue
@@ -489,9 +488,13 @@ class MaterialIssueController {
               await prisma.transactions.updateMany({
                 where: {
                   sparesMaterialSale: { id: id },
-                  Part: { id: oldMpi.partId }
+                  partId: oldMpi.partId
                 },
-                data: { Quantity: Math.round(parseFloat(item.quantity || 0)) }
+                data: { 
+                  Quantity: Math.round(parseFloat(item.quantity || 0)),
+                  status: "SUB",
+                  color: "red"
+                }
               });
             }
 
@@ -533,7 +536,8 @@ class MaterialIssueController {
               data: {
                 type: "JobCard Material Invoice",
                 Quantity: Math.round(parseFloat(item.quantity || 0)),
-                status: "False",
+                status: "SUB",
+                color: "red",
                 Part: { connect: { id: item.partNumber.id } },
                 branch: branch ? { connect: { id: branch } } : undefined,
                 sparesMaterialSale: { connect: { id: id } }

@@ -5,16 +5,48 @@ import { broadcastEstimateUpdate } from "../config/webSocket.js";
 
 import IdGenerateController from "./idGenerate.js";
 import JobOrderController from "./jobOrder.js";
+import JobOrderLogController from "./jobOrderLog.js";
 import PDFUtil from "../utils/pdf.util.js";
 import { uploadPDFToSpaces } from "../utils/spaces.util.js";
 import moment from "moment";
 import QRCode from "qrcode";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 /**
  * Controller for Service Estimate operations.
  * Maintained with 100% payload parity with autoinn-be.
  */
 class EstimateController {
+  async checkAccess(req, action = 'read') {
+    const userId = req.user?.id;
+    if (!userId) return false;
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        EmployeeProfile_User_profileToEmployeeProfile: {
+          include: {
+            department: {
+              include: {
+                RoleAccess: { include: { access: true } }
+              }
+            }
+          }
+        }
+      }
+    });
+
+    const roleAccess = user?.EmployeeProfile_User_profileToEmployeeProfile?.department?.RoleAccess || [];
+    const estimateAccess = roleAccess.find(ra => ra.subModule?.toUpperCase() === "ESTIMATE");
+    
+    // If no specific access defined for ESTIMATE, we might want to allow by default or restrict.
+    // The user said "after restricting", so we should respect the 'false' value.
+    if (estimateAccess && estimateAccess.access && estimateAccess.access[action] === false) {
+      return false;
+    }
+    return true;
+  }
+
   getTemplateData(estimate, qrUrl) {
     const jobOrder = estimate.jobOrder || {};
     const vehicle = jobOrder.vehicle || {};
@@ -186,6 +218,10 @@ class EstimateController {
 
   createEstimate = async (req, res) => {
     try {
+      if (!(await this.checkAccess(req, 'create'))) {
+        return res.status(403).json({ code: 403, message: "Restricted: You do not have permission to create Estimates" });
+      }
+
       const {
         estimateNo, jobOrder, dateTime, estimateStatus,
         discountLevel, discountType, discountPercent, discountRate,
@@ -311,6 +347,9 @@ class EstimateController {
       // Generate and upload PDF to Spaces
       const finalEstimate = await this.generateAndUploadPDF(created.id) || created;
 
+      // Create Logs
+      await JobOrderLogController.createInternalLog(validatedJobOrderId, "Estimate Generated", created.id);
+
       return res.json({
         code: 200,
         response: {
@@ -327,6 +366,10 @@ class EstimateController {
 
   updateEstimate = async (req, res) => {
     try {
+      if (!(await this.checkAccess(req, 'update'))) {
+        return res.status(403).json({ code: 403, message: "Restricted: You do not have permission to update Estimates" });
+      }
+
       const { id } = req.params;
       const {
         estimateNo, jobOrder, dateTime, estimateStatus,
@@ -447,6 +490,10 @@ class EstimateController {
 
   getOne = async (req, res) => {
     try {
+      if (!(await this.checkAccess(req, 'read'))) {
+        return res.status(403).json({ code: 403, message: "Restricted: You do not have permission to view Estimates" });
+      }
+
       const { id } = req.params;
       const estimate = await prisma.estimate.findUnique({
         where: { id },
@@ -506,26 +553,20 @@ class EstimateController {
 
   getPage = async (req, res) => {
     try {
-      const { page, size, searchString, status } = req.body;
+      if (!(await this.checkAccess(req, 'read'))) {
+        return res.status(403).json({ code: 403, message: "Restricted: You do not have permission to view Estimates" });
+      }
+
+      const { page, size, searchString, status, branch } = req.body;
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
       const skip = (page - 1) * size;
       const inputValue = searchString || "";
 
-      const statusFilter = status === "APPROVED" 
-        ? {
-            OR: [
-              { estimateStatus: "APPROVED" },
-              { 
-                AND: [
-                  { estimateStatus: "PENDING" },
-                  { EstimateItem: { some: { status: "APPROVED" } } }
-                ]
-              }
-            ]
-          }
-        : (status ? { estimateStatus: status } : {});
+      const statusFilter = status ? { estimateStatus: status } : {};
 
       const where = {
         AND: [
+          branchIds.length > 0 ? { branchId: { in: branchIds } } : {},
           {
             OR: [
               { estimateNo: { contains: inputValue, mode: 'insensitive' } },
@@ -569,6 +610,10 @@ class EstimateController {
 
   updateEstimateStatus = async (req, res) => {
     try {
+      if (!(await this.checkAccess(req, 'update'))) {
+        return res.status(403).json({ code: 403, message: "Restricted: You do not have permission to update Estimates" });
+      }
+
       const { id } = req.params;
       const { type, jobOrder, estimateItems } = req.body;
       const user = req.user?.id || req.headers["user-id"];
@@ -708,6 +753,10 @@ class EstimateController {
 
   deleteEstimate = async (req, res) => {
     try {
+      if (!(await this.checkAccess(req, 'delete'))) {
+        return res.status(403).json({ code: 403, message: "Restricted: You do not have permission to delete Estimates" });
+      }
+
       const { id } = req.params;
       const type = req.query.type || req.body.type || "HARD";
 

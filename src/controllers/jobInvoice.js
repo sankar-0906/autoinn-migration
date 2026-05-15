@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 import IdGenerateController from "./idGenerate.js";
 
@@ -370,6 +371,8 @@ class JobInvoiceController {
                  data: {
                    Part: { connect: { id: item.partNumberId } },
                    Quantity: parseInt(item.quantity) || 0,
+                   status: "SUB",
+                   color: "red",
                    type: invoiceType === "counterSale" ? "Counter Sale" : "Sale Spare Invoice",
                    sparesSale: { connect: { id: invoice.id } },
                    branch: branchId ? { connect: { id: branchId } } : undefined,
@@ -523,6 +526,8 @@ class JobInvoiceController {
                  data: {
                    Part: { connect: { id: item.partNumberId } },
                    Quantity: parseInt(item.quantity) || 0,
+                   status: "SUB",
+                   color: "red",
                    type: updatedInvoice.invoiceType === "counterSale" ? "Counter Sale" : "Sale Spare Invoice",
                    sparesSale: { connect: { id: updatedInvoice.id } },
                    branch: oldInvoice.branchId ? { connect: { id: oldInvoice.branchId } } : undefined,
@@ -617,8 +622,14 @@ class JobInvoiceController {
       });
 
       if (invoice) {
+        const jobOrderId = invoice.jobOrderId;
         const payments = await prisma.payment.findMany({
-          where: { moduleId: id, module: "JOB_INVOICE" },
+          where: {
+            OR: [
+              { moduleId: id, module: "JOB_INVOICE" },
+              { moduleId: jobOrderId, module: "JobOrder" }
+            ]
+          },
           include: { denominations: true, collectedBy: true, paidBy: true, branch: true, bank: true },
           orderBy: { createdAt: 'asc' }
         });
@@ -646,8 +657,9 @@ class JobInvoiceController {
 
   getPage = async (req, res) => {
     try {
-      const { page, size, searchString, jobStatus, branch = [], status = "" } = req.body;
+      const { page, size, searchString, jobStatus, branch, status = "" } = req.body;
       const skip = (page - 1) * size;
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
 
       const where = {
         AND: [
@@ -655,15 +667,35 @@ class JobInvoiceController {
           searchString ? {
             OR: [
               { invoiceNumber: { contains: searchString, mode: 'insensitive' } },
-              { jobOrder: { jobNo: { contains: searchString, mode: 'insensitive' } } },
-              { partyName: { name: { contains: searchString, mode: 'insensitive' } } }
+              { jobOrder: { 
+                OR: [
+                  { jobNo: { contains: searchString, mode: 'insensitive' } },
+                  { vehicle: { 
+                    OR: [
+                      { registerNo: { contains: searchString, mode: 'insensitive' } },
+                      { chassisNo: { contains: searchString, mode: 'insensitive' } }
+                    ]
+                  } }
+                ]
+              } },
+              { partyName: { 
+                OR: [
+                  { name: { contains: searchString, mode: 'insensitive' } },
+                  { CustomerPhone: { some: { phone: { contains: searchString } } } }
+                ]
+              } }
             ]
           } : {},
-          branch.length > 0 ? { branchId: { in: branch } } : {},
+          branchIds.length > 0 ? { branchId: { in: branchIds } } : {},
           jobStatus ? {
             jobOrder: { jobStatus: Array.isArray(jobStatus) ? { in: jobStatus } : jobStatus }
           } : {},
-          (status && typeof status === 'string') ? { status: status.replace("!", "") } : {}
+          (status && typeof status === 'string') ? {
+            OR: [
+              status.startsWith("!") ? { status: { not: status.slice(1) } } : { status: status },
+              status.startsWith("!") ? { status: null } : {}
+            ].filter(c => Object.keys(c).length > 0)
+          } : {}
         ]
       };
 
@@ -683,17 +715,35 @@ class JobInvoiceController {
       // Attach payment records so frontend can compute remaining amount
       if (formattedInvoices.length > 0) {
         const invoiceIds = formattedInvoices.map(inv => inv.id);
+        const jobOrderIds = formattedInvoices.filter(inv => inv.jobOrderId).map(inv => inv.jobOrderId);
+
         const payments = await prisma.payment.findMany({
-          where: { module: "JOB_INVOICE", moduleId: { in: invoiceIds } },
+          where: {
+            OR: [
+              { module: "JOB_INVOICE", moduleId: { in: invoiceIds } },
+              { module: "JobOrder", moduleId: { in: jobOrderIds } }
+            ]
+          },
           include: { denominations: true, collectedBy: true, paidBy: true, branch: true, bank: true }
         });
-        const paymentMap = {};
+
+        const paymentMapByInvoice = {};
+        const paymentMapByJobOrder = {};
+        
         payments.forEach(p => {
-          if (!paymentMap[p.moduleId]) paymentMap[p.moduleId] = [];
-          paymentMap[p.moduleId].push(p);
+          if (p.module === "JOB_INVOICE") {
+            if (!paymentMapByInvoice[p.moduleId]) paymentMapByInvoice[p.moduleId] = [];
+            paymentMapByInvoice[p.moduleId].push(p);
+          } else if (p.module === "JobOrder") {
+            if (!paymentMapByJobOrder[p.moduleId]) paymentMapByJobOrder[p.moduleId] = [];
+            paymentMapByJobOrder[p.moduleId].push(p);
+          }
         });
+
         formattedInvoices.forEach(inv => {
-          inv.payment = paymentMap[inv.id] || [];
+          const invPayments = paymentMapByInvoice[inv.id] || [];
+          const joPayments = inv.jobOrderId ? (paymentMapByJobOrder[inv.jobOrderId] || []) : [];
+          inv.payment = [...invPayments, ...joPayments];
         });
       }
 
@@ -774,8 +824,15 @@ class JobInvoiceController {
       // === GUARD: If requesting PAID, verify actual payments cover the bill ===
       let resolvedStatus = status || "PAID";
       if (resolvedStatus === "PAID") {
+        const paymentCriteria = [
+          { module: "JOB_INVOICE", moduleId: id, status: "SUCCESS" }
+        ];
+        if (invoice.jobOrderId) {
+          paymentCriteria.push({ module: "JobOrder", moduleId: invoice.jobOrderId, status: "SUCCESS" });
+        }
+
         const allSuccessPayments = await prisma.payment.findMany({
-          where: { module: "JOB_INVOICE", moduleId: id, status: "SUCCESS" }
+          where: { OR: paymentCriteria }
         });
         const totalCollected = allSuccessPayments.reduce(
           (sum, p) => sum + Number(p.collectedAmount || 0), 0
@@ -791,16 +848,18 @@ class JobInvoiceController {
 
       const jobStatusToSet = resolvedStatus === "PAID" ? "PAID" : "Proforma Invoice";
 
-      if (invoice && invoice.jobOrderId) {
-        await prisma.jobOrder.update({
-          where: { id: invoice.jobOrderId },
-          data: { jobStatus: jobStatusToSet }
-        });
-      }
+      await prisma.$transaction(async (tx) => {
+        if (invoice && invoice.jobOrderId) {
+          await tx.jobOrder.update({
+            where: { id: invoice.jobOrderId },
+            data: { jobStatus: jobStatusToSet }
+          });
+        }
 
-      await prisma.saleSpareInvoice.update({
-        where: { id },
-        data: { status: resolvedStatus }
+        await tx.saleSpareInvoice.update({
+          where: { id },
+          data: { status: resolvedStatus }
+        });
       });
 
       return res.json({ code: 200, response: { code: 200, message: "Job status updated successfully" } });
@@ -880,15 +939,111 @@ class JobInvoiceController {
 
   saveFeedback = async (req, res) => {
     try {
-      const { id, feedback } = req.body;
+      const { id, feedback, customerFeedback } = req.body;
+      const finalFeedback = customerFeedback || feedback;
+      
       await prisma.saleSpareInvoice.update({
         where: { id },
-        data: { remarks: feedback }
+        data: { 
+          jobInvoiceFeedback: finalFeedback,
+          status: "FEEDBACK_COMPLETED"
+        }
       });
       return res.json({ code: 200, response: { code: 200, message: "Feedback saved successfully" } });
     } catch (error) {
       logger.error("JobInvoice.saveFeedback error: ", error);
       return res.json({ code: 500, response: { code: 500, message: error.message } });
+    }
+  };
+
+  deleteFeedback = async (req, res) => {
+    try {
+      const { id } = req.params;
+      await prisma.saleSpareInvoice.update({
+        where: { id },
+        data: { 
+          jobInvoiceFeedback: null,
+          status: "PAID" // Revert to PAID or appropriate status
+        }
+      });
+      return res.json({ code: 200, response: { code: 200, message: "Feedback deleted successfully" } });
+    } catch (error) {
+      logger.error("JobInvoice.deleteFeedback error: ", error);
+      return res.json({ code: 500, response: { code: 500, message: error.message } });
+    }
+  };
+
+  getScheduled = async (req, res) => {
+    try {
+      const { next, jobStatus, status, searchString, phone, branch } = req.body;
+      const branchIds = normalizeBranchIds(branch, req.user?.branch);
+
+      const where = {
+        AND: [
+          { invoiceType: "jobOrder" },
+          branchIds.length > 0 ? { branchId: { in: branchIds } } : {},
+          (status && typeof status === 'string') ? {
+            OR: [
+              status.startsWith("!") ? { status: { not: status.slice(1) } } : { status: status },
+              status.startsWith("!") ? { status: null } : {}
+            ].filter(c => Object.keys(c).length > 0)
+          } : {},
+          jobStatus ? {
+            jobOrder: { jobStatus: Array.isArray(jobStatus) ? { in: jobStatus } : jobStatus }
+          } : {}
+        ]
+      };
+
+      const invoices = await prisma.saleSpareInvoice.findMany({
+        where,
+        orderBy: { updatedAt: 'desc' },
+        include: this.saleSpareInclude
+      });
+
+      const currentIndex = invoices.findIndex(invoice => {
+        const contacts = invoice.partyName?.contacts || invoice.partyName?.CustomerPhone || [];
+        return contacts.some(c => String(c.phone) === String(phone));
+      });
+
+      let targetRecord = null;
+      if (currentIndex !== -1) {
+        const targetIndex = next ? currentIndex + 1 : currentIndex - 1;
+        if (targetIndex >= 0 && targetIndex < invoices.length) {
+          targetRecord = invoices[targetIndex];
+        }
+      }
+
+      if (!targetRecord) {
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            message: "No more records",
+            data: null
+          }
+        });
+      }
+
+      const formatted = this.formatSaleSpareInvoice(targetRecord);
+      
+      // Attach payments
+      const payments = await prisma.payment.findMany({
+        where: { module: "JOB_INVOICE", moduleId: targetRecord.id },
+        include: { denominations: true, collectedBy: true, paidBy: true, branch: true, bank: true }
+      });
+      formatted.payment = payments;
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Scheduled job invoice fetched",
+          data: formatted
+        }
+      });
+    } catch (err) {
+      logger.error("getScheduled error:", err);
+      return res.json({ code: 500, response: { code: 500, message: "Server error" } });
     }
   };
 }

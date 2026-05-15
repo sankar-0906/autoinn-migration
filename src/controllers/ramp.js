@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import userController from "./user.js";
+import { normalizeBranchIds } from "../utils/branch.util.js";
 
 /**
  * Controller for Ramp operations.
@@ -60,10 +61,12 @@ class RampController {
    */
   getAllRamps = async (req, res) => {
     try {
-      let branchIds = req.user?.branch; // From auth middleware
-      if (!branchIds) return res.status(400).json({ code: 400, message: "Branch context missing" });
+      const branchInput = req.query.branch || req.body.branch;
+      const branchIds = normalizeBranchIds(branchInput, req.user?.branch);
       
-      if (!Array.isArray(branchIds)) branchIds = [branchIds];
+      if (branchIds.length === 0) {
+        return res.json({ code: 200, response: [] });
+      }
 
       const results = [];
 
