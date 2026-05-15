@@ -151,10 +151,12 @@ class RampController {
       if (!job) return res.status(404).json({ code: 404, message: "Job order not found" });
 
       // In Prisma 7, we update the job order to point to the ramp
+      // and update status to Work In Progress if it was Mechanic Allocated
       await prisma.jobOrder.update({
         where: { id: jobOrderId },
         data: {
-          rampId: rampId
+          rampId: rampId,
+          jobStatus: job.jobStatus === "Mechanic Allocated" ? "Work In Progress" : job.jobStatus
         }
       });
 

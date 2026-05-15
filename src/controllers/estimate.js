@@ -8,40 +8,64 @@ import JobOrderController from "./jobOrder.js";
 import PDFUtil from "../utils/pdf.util.js";
 import { uploadPDFToSpaces } from "../utils/spaces.util.js";
 import moment from "moment";
+import QRCode from "qrcode";
 
 /**
  * Controller for Service Estimate operations.
  * Maintained with 100% payload parity with autoinn-be.
  */
 class EstimateController {
-  getTemplateData(formatted) {
+  getTemplateData(estimate, qrUrl) {
+    const jobOrder = estimate.jobOrder || {};
+    const vehicle = jobOrder.vehicle || {};
+    const vMaster = vehicle.vehicle || {};
+    const branch = estimate.branch || jobOrder.branch || {};
+    const customer = jobOrder.customer || {};
+    const contacts = customer.contacts || [];
+
+    const date = moment(estimate.createdAt).format("DD/MM/YYYY");
+    const time = moment(estimate.createdAt).format("hh:mm A");
+    const cdate = moment().format("DD-MM-YYYY");
+    const ctime = moment().format("HH:mm");
+
     return {
       vehicle: [{
-        jobNo: formatted.jobOrder?.jobNo,
-        serviceType: formatted.serviceType,
-        claimType: formatted.claimType,
-        claimStatus: formatted.claimStatus,
-        insurer: formatted.insurer?.name,
-        survivor: formatted.survivor?.name,
-        survivorContact: formatted.survivorContact,
-        estimate: (formatted.estimateItemInvoice || []).map((item, index) => ({
+        jobNo: jobOrder.jobNo,
+        estimateNo: estimate.estimateNo,
+        serviceType: estimate.serviceType,
+        claimType: estimate.claimType,
+        claimStatus: estimate.claimStatus,
+        insurer: estimate.insurer?.name || "",
+        survivor: estimate.survivor?.name || "",
+        survivorContact: estimate.survivorContact || "",
+        estimate: (estimate.estimateItemInvoice || []).map((item, index) => ({
           index: index + 1,
-          partNumber: item.partNumber?.partNumber || item.jobCode?.code || "N/A",
+          partNumber: item.partNumber ? `${item.partNumber.partNumber} - ${item.partNumber.partName}` : (item.jobCode?.code || "N/A"),
           quantity: item.quantity,
           unitRate: item.unitRate,
           rate: (item.quantity * item.unitRate).toFixed(2),
-          status: item.status
+          status: item.status || "PENDING"
         })),
-        labourCharge: formatted.labourCharge,
-        partCharge: formatted.partCharge,
-        consumableCharge: formatted.consumableCharge,
+        labourCharge: estimate.labourCharge || 0,
+        partCharge: estimate.partCharge || 0,
+        consumableCharge: estimate.consumableCharge || 0,
+        estTotalAmount: estimate.estTotalAmount || 0,
         customer: {
-          name: formatted.jobOrder?.customer?.name,
-          contact: formatted.jobOrder?.customer?.contacts?.[0]?.phone || formatted.jobOrder?.customerPhone
+          name: customer.name || "",
+          contact: contacts.map(c => c.phone).join(" / ") || jobOrder.customerPhone || ""
         },
-        cdate: moment(formatted.createdAt).format("DD/MM/YYYY"),
-        ctime: moment(formatted.createdAt).format("hh:mm A"),
-        estTotalAmount: formatted.estTotalAmount
+        cdate,
+        ctime,
+        date,
+        time,
+        logo: branch.company?.logo || "",
+        yamahaLogo: vMaster.manufacturer?.logo || "",
+        branchName: branch.company?.name || "",
+        branchAddress: `${branch.address?.line1 || ""} ${branch.address?.line2 || ""} ${branch.address?.locality || ""}, ${branch.address?.district?.name || ""}, ${branch.address?.state?.name || ""}, ${branch.address?.pincode || ""}`,
+        branchContacts: (branch.contacts || []).map(c => c.phone).join(" / "),
+        branchEmail: branch.email || "",
+        branchUrl: branch.url || "",
+        QR: qrUrl
       }]
     };
   }
@@ -61,7 +85,19 @@ class EstimateController {
     },
     insurer: true,
     survivor: { include: { CustomerPhone: true } },
-    branch: { include: { manufacturer: true } }
+    branch: {
+      include: {
+        company: true,
+        address: {
+          include: {
+            district: true,
+            state: true,
+            country: true
+          }
+        },
+        contacts: true
+      }
+    }
   };
 
   /**
@@ -444,10 +480,15 @@ class EstimateController {
       if (!estimate) return null;
 
       const formatted = this.formatEstimate(estimate);
-      const templateData = this.getTemplateData(formatted);
+      
+      // Generate QR Code
+      const qrData = `Estimate No: ${formatted.estimateNo}\nJob No: ${formatted.jobOrder?.jobNo}\nAmount: ${formatted.estTotalAmount}`;
+      const qrUrl = await QRCode.toDataURL(qrData);
+
+      const templateData = this.getTemplateData(formatted, qrUrl);
       const pdfBuffer = await PDFUtil.generatePDF('estimate', templateData);
       
-      const fileName = `EST${formatted.estimateNo || id.substring(0, 8)}`;
+      const fileName = `EST_${formatted.estimateNo.replace(/\//g, '_')}`;
       const pdfUrl = await uploadPDFToSpaces(pdfBuffer, fileName, 'estimate');
       
       const updated = await prisma.estimate.update({
@@ -722,26 +763,41 @@ class EstimateController {
       const { id } = req.params;
       const estimate = await prisma.estimate.findUnique({
         where: { id },
-        include: this.estimateInclude
+        select: { id: true, estimateNo: true, estimatePdf: true }
       });
 
-      if (!estimate) return res.status(404).json({ code: 404, msg: "Estimate not found" });
-
-      if (estimate.estimatePdf) {
-        return res.redirect(estimate.estimatePdf);
+      if (!estimate) {
+        return res.json({ code: 404, message: "Estimate not found" });
       }
 
-      // If PDF doesn't exist, generate and upload it
+      // Always regenerate to ensure fresh UI and data
       const updated = await this.generateAndUploadPDF(id);
       
       if (updated && updated.estimatePdf) {
-        return res.redirect(updated.estimatePdf);
-      } else {
-        return res.status(500).json({ code: 500, msg: "Failed to generate PDF URL" });
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            data: { pdfUrl: updated.estimatePdf }
+          }
+        });
       }
+
+      // If regeneration failed but we have a cached URL, return that
+      if (estimate.estimatePdf) {
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            data: { pdfUrl: estimate.estimatePdf }
+          }
+        });
+      }
+
+      return res.json({ code: 500, message: "Failed to generate PDF" });
     } catch (err) {
       logger.error("Generate estimate PDF error:", err);
-      return res.status(500).json({ code: 500, msg: "An error occured while generating PDF", error: err.message });
+      return res.json({ code: 500, message: "An error occurred while generating PDF", error: err.message });
     }
   };
 }

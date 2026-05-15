@@ -68,39 +68,157 @@ class CustomerController {
     };
 
     if (formatted.refferedBy) {
-        formatted.refferedBy = {
-            ...formatted.refferedBy,
-            contacts: formatted.refferedBy.CustomerPhone
-        };
+      formatted.refferedBy = {
+        ...formatted.refferedBy,
+        contacts: formatted.refferedBy.CustomerPhone
+      };
     }
 
     if (formatted.quotation) {
-        formatted.quotation = formatted.quotation.map(q => ({
-            ...q,
-            vehicle: q.QuotationVehicle?.length > 0 ? {
-                ...q.QuotationVehicle[0],
-                vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
-                    ...q.QuotationVehicle[0].vehicleDetail,
-                    manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
-                    image: q.QuotationVehicle[0].vehicleDetail.image,
-                    price: q.QuotationVehicle[0].vehicleDetail.price
-                } : null
-            } : null
-        }));
+      formatted.quotation = formatted.quotation.map(q => ({
+        ...q,
+        vehicle: q.QuotationVehicle?.length > 0 ? {
+          ...q.QuotationVehicle[0],
+          vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
+            ...q.QuotationVehicle[0].vehicleDetail,
+            manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
+            image: q.QuotationVehicle[0].vehicleDetail.image,
+            price: q.QuotationVehicle[0].vehicleDetail.price
+          } : null
+        } : null
+      }));
     }
 
     if (formatted.booking) {
-        formatted.booking = formatted.booking.map(b => ({
-            ...b,
-            vehicle: b.vehicle ? {
-                ...b.vehicle,
-                manufacturer: b.vehicle.manufacturer,
-                price: b.vehicle.price
-            } : null
-        }));
+      formatted.booking = formatted.booking.map(b => ({
+        ...b,
+        vehicle: b.vehicle ? {
+          ...b.vehicle,
+          manufacturer: b.vehicle.manufacturer,
+          price: b.vehicle.price
+        } : null
+      }));
     }
 
     return formatted;
+  };
+
+  updateCustomer = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const {
+        salutation, name, fatherName, gender, email,
+        contacts, address, shippingAddress, GSTType, GSTNo,
+        customerType, customerGrouping, dateOfBirth
+      } = req.body;
+      const user = req.user?.id || req.headers["user-id"];
+
+      // 1. Fetch existing customer to check for addresses
+      const existing = await prisma.customer.findUnique({
+        where: { id },
+        include: { address: true, shippingAddress: true }
+      });
+
+      if (!existing) {
+        return res.status(404).json({ code: 404, message: "Customer not found" });
+      }
+
+      // 2. Update Customer
+      const updated = await prisma.customer.update({
+        where: { id },
+        data: {
+          salutation,
+          name,
+          fatherName,
+          gender,
+          email,
+          GSTType,
+          GSTNo,
+          customerType,
+          customerGrouping,
+          dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : undefined,
+          updatedAt: new Date(),
+          CustomerPhone: contacts ? {
+            deleteMany: {},
+            create: contacts.map(c => ({
+              phone: c.phone,
+              type: c.type,
+              valid: c.valid !== undefined ? c.valid : true,
+              DND: c.DND !== undefined ? c.DND : false,
+              WhatsApp: c.WhatsApp !== undefined ? c.WhatsApp : false,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              createdBy: user ? { connect: { id: user } } : undefined
+            }))
+          } : undefined,
+          address: address ? (existing.addressId ? {
+            update: {
+              line1: address.line1,
+              line2: address.line2,
+              line3: address.line3,
+              locality: address.locality,
+              pincode: address.pincode,
+              updatedAt: new Date(),
+              district: address.district ? { connect: { id: address.district } } : { disconnect: true },
+              state: address.state ? { connect: { id: address.state } } : { disconnect: true },
+              country: address.country ? { connect: { id: address.country } } : { disconnect: true },
+            }
+          } : {
+            create: {
+              line1: address.line1,
+              line2: address.line2,
+              line3: address.line3,
+              locality: address.locality,
+              pincode: address.pincode,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              district: address.district ? { connect: { id: address.district } } : undefined,
+              state: address.state ? { connect: { id: address.state } } : undefined,
+              country: address.country ? { connect: { id: address.country } } : undefined,
+            }
+          }) : undefined,
+          shippingAddress: shippingAddress ? (existing.shippingAddressId ? {
+            update: {
+              line1: shippingAddress.line1,
+              line2: shippingAddress.line2,
+              line3: shippingAddress.line3,
+              locality: shippingAddress.locality,
+              pincode: shippingAddress.pincode,
+              updatedAt: new Date(),
+              district: shippingAddress.district ? { connect: { id: shippingAddress.district } } : { disconnect: true },
+              state: shippingAddress.state ? { connect: { id: shippingAddress.state } } : { disconnect: true },
+              country: shippingAddress.country ? { connect: { id: shippingAddress.country } } : { disconnect: true },
+            }
+          } : {
+            create: {
+              line1: shippingAddress.line1,
+              line2: shippingAddress.line2,
+              line3: shippingAddress.line3,
+              locality: shippingAddress.locality,
+              pincode: shippingAddress.pincode,
+              createdAt: new Date(),
+              updatedAt: new Date(),
+              district: shippingAddress.district ? { connect: { id: shippingAddress.district } } : undefined,
+              state: shippingAddress.state ? { connect: { id: shippingAddress.state } } : undefined,
+              country: shippingAddress.country ? { connect: { id: shippingAddress.country } } : undefined,
+            }
+          }) : undefined,
+        },
+        include: this.customerInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "Customer updated",
+          data: this.formatCustomer(updated)
+        }
+      });
+    } catch (err) {
+      logger.error("Update customer error:", err);
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
+    }
   };
 
   createCustomer = async (req, res) => {
@@ -234,7 +352,7 @@ class CustomerController {
           skip: skip,
           include: { customer: true }
         }),
-        prisma.quotation.groupBy({ 
+        prisma.quotation.groupBy({
           by: ['quotationPhone'],
           where
         }).then(res => res.length)
@@ -300,21 +418,21 @@ class CustomerController {
       const customer = await prisma.customer.findUnique({
         where: { id },
         include: {
-            ...this.customerInclude,
-            Vehicle: { // Many-to-many through CustomerHasVehicle
-                include: {
-                    vehicleMaster: { include: { manufacturer: true } },
-                    color: true,
-                    Customer: { include: { CustomerPhone: true } }
-                }
+          ...this.customerInclude,
+          Vehicle: { // Many-to-many through CustomerHasVehicle
+            include: {
+              vehicleMaster: { include: { manufacturer: true } },
+              color: true,
+              Customer: { include: { CustomerPhone: true } }
             }
+          }
         }
       });
 
       if (!customer) {
         return res.json({
-            code: 200,
-            response: { code: 404, message: "customer not found", data: {} }
+          code: 200,
+          response: { code: 404, message: "customer not found", data: {} }
         });
       }
 
@@ -323,9 +441,9 @@ class CustomerController {
         where: { partyNameId: id },
         orderBy: { createdAt: 'desc' },
         include: {
-            jobCard: true,
-            soldVehicle: true,
-            partyName: true
+          jobCard: true,
+          soldVehicle: true,
+          partyName: true
         }
       });
 
@@ -334,14 +452,14 @@ class CustomerController {
         where: { customerId: id },
         orderBy: { createdAt: 'desc' },
         include: {
-            vehicle: { include: { color: true } },
-            branch: true
+          vehicle: { include: { color: true } },
+          branch: true
         }
       });
 
       // 4. Fetch TeleCMI (Placeholder for now as raw SQL might be needed for RIGHT join)
       // Mirroring legacy logic of filtering last 10 digits
-      const telecmiCallHistory = []; 
+      const telecmiCallHistory = [];
 
       // 5. Fetch Number Plates
       const chassisNos = (customer.Vehicle || []).map(v => v.chassisNo).filter(Boolean);
@@ -499,13 +617,13 @@ class CustomerController {
         .map(q => ({
           ...q,
           vehicle: q.QuotationVehicle?.length > 0 ? {
-              ...q.QuotationVehicle[0],
-              vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
-                  ...q.QuotationVehicle[0].vehicleDetail,
-                  manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
-                  image: q.QuotationVehicle[0].vehicleDetail.image,
-                  price: q.QuotationVehicle[0].vehicleDetail.price
-              } : null
+            ...q.QuotationVehicle[0],
+            vehicleDetail: q.QuotationVehicle[0].vehicleDetail ? {
+              ...q.QuotationVehicle[0].vehicleDetail,
+              manufacturer: q.QuotationVehicle[0].vehicleDetail.manufacturer,
+              image: q.QuotationVehicle[0].vehicleDetail.image,
+              price: q.QuotationVehicle[0].vehicleDetail.price
+            } : null
           } : null
         }));
 

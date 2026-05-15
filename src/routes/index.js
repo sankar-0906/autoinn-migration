@@ -60,6 +60,7 @@ import inventoryTransfersRoutes from "./inventoryTransfers.js";
 import numberPlateRoutes from "./numberPlate.js";
 import paymentRoutes from "./payment.js";
 import rampRoutes from "./ramp.js";
+import pymidolRoutes from "./pymidol.js";
 
 const router = Router();
 
@@ -130,5 +131,6 @@ router.use("/numberPlate", numberPlateRoutes);
 router.use("/numberplate", numberPlateRoutes);
 router.use("/payment", paymentRoutes);
 router.use("/ramp", rampRoutes);
+router.use("/pymidol", pymidolRoutes);
 
 export default router;

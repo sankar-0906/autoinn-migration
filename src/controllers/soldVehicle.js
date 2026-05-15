@@ -1,6 +1,7 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import dayjs from "dayjs";
 
 /**
  * Controller for Sold Vehicle operations.
@@ -21,6 +22,152 @@ class SoldVehicleController {
     },
     services: true,
     jobOrder: true
+  };
+
+  createSoldVehicle = async (req, res) => {
+    try {
+      const user = req.user?.id || req.headers["user-id"];
+      let data = req.body;
+      
+      if (data.vehicleData) {
+        data = Array.isArray(data.vehicleData) 
+          ? JSON.parse(data.vehicleData[0]) 
+          : JSON.parse(data.vehicleData);
+      }
+
+      const {
+        customer, vehicle, color, registerNo, chassisNo, engineNo,
+        dateOfSale, mfg, vehicleType, manufacturer, serviceCouponNumber,
+        serviceList, insuranceData
+      } = data;
+
+      logger.info(`Creating vehicle: ${registerNo || chassisNo || 'Unassigned'}`);
+
+      const date = dateOfSale ? dayjs(dateOfSale, ["DD-MM-YYYY", "YYYY-MM-DD", "DD/MM/YYYY"]).toDate() : new Date();
+
+      const created = await prisma.vehicle.create({
+        data: {
+          registerNo: registerNo || null,
+          chassisNo: chassisNo || null,
+          engineNo: engineNo || null,
+          serviceCouponNumber: serviceCouponNumber || null,
+          vehicleType: vehicleType || null,
+          dateOfSale: date,
+          mfg: mfg || null,
+          active: true,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+          createdBy: user ? { connect: { id: user } } : undefined,
+          vehicleMaster: vehicle ? { connect: { id: vehicle } } : undefined,
+          color: color ? { connect: { id: color } } : undefined,
+          manufacturer: manufacturer ? { connect: { id: manufacturer } } : undefined,
+          services: serviceList && serviceList.length > 0 ? {
+            create: serviceList.map(s => ({
+              serviceNo: s.serviceNo ? parseInt(s.serviceNo) : 0,
+              serviceType: s.serviceType,
+              serviceKms: s.serviceKms ? parseInt(s.serviceKms) : 0,
+              serviceDate: s.serviceDate ? dayjs(s.serviceDate, ["DD-MM-YYYY", "YYYY-MM-DD", "DD/MM/YYYY"]).toDate() : null,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }))
+          } : undefined,
+          VehicleInsurance: insuranceData && insuranceData.length > 0 ? {
+            create: insuranceData.map(ins => ({
+              policyNumber: ins.policyNumber,
+              insuranceType: ins.insuranceType,
+              validFrom: ins.validFrom ? dayjs(ins.validFrom, ["DD-MM-YYYY", "YYYY-MM-DD", "DD/MM/YYYY"]).toDate() : null,
+              validTo: ins.validTo ? dayjs(ins.validTo, ["DD-MM-YYYY", "YYYY-MM-DD", "DD/MM/YYYY"]).toDate() : null,
+              insurance: ins.insurer ? { connect: { id: ins.insurer } } : undefined,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }))
+          } : undefined,
+          Customer: customer && customer.length > 0 ? {
+            connect: (Array.isArray(customer) ? customer : [customer]).map(c => ({ id: c.customer || c.id || c }))
+          } : undefined
+        },
+        include: this.soldInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "SoldVehicle created",
+          data: this.formatVehicle(created)
+        }
+      });
+    } catch (err) {
+      logger.error("Create sold vehicle error:", err);
+      return res.json({ code: 500, msg: "error creating vehicle", error: err.message });
+    }
+  };
+
+  updateSoldVehicle = async (req, res) => {
+    try {
+      const { id } = req.params;
+      const user = req.user?.id || req.headers["user-id"];
+      let data = req.body;
+
+      if (data.vehicleData) {
+        data = Array.isArray(data.vehicleData) 
+          ? JSON.parse(data.vehicleData[0]) 
+          : JSON.parse(data.vehicleData);
+      }
+
+      const {
+        customer, vehicle, color, registerNo, chassisNo, engineNo,
+        dateOfSale, mfg, vehicleType, manufacturer, serviceCouponNumber,
+        serviceList, insuranceData, removedCustomer, deleteService
+      } = data;
+
+      const date = dateOfSale ? dayjs(dateOfSale, ["DD-MM-YYYY", "YYYY-MM-DD", "DD/MM/YYYY"]).toDate() : new Date();
+
+      const updated = await prisma.vehicle.update({
+        where: { id },
+        data: {
+          registerNo,
+          chassisNo,
+          engineNo,
+          serviceCouponNumber,
+          vehicleType,
+          dateOfSale: date,
+          mfg,
+          updatedAt: new Date(),
+          vehicleMaster: vehicle ? { connect: { id: vehicle } } : { disconnect: true },
+          color: color ? { connect: { id: color } } : { disconnect: true },
+          manufacturer: manufacturer ? { connect: { id: manufacturer } } : { disconnect: true },
+          Customer: {
+            disconnect: removedCustomer ? removedCustomer.map(cid => ({ id: cid })) : undefined,
+            connect: customer ? customer.filter(c => !c.id).map(c => ({ id: c.customer || c.id })) : undefined
+          },
+          services: {
+            deleteMany: deleteService ? { id: { in: deleteService.map(s => s.id) } } : undefined,
+            create: serviceList ? serviceList.filter(s => !s.id).map(s => ({
+              serviceNo: s.serviceNo ? parseInt(s.serviceNo) : 0,
+              serviceType: s.serviceType,
+              serviceKms: s.serviceKms ? parseInt(s.serviceKms) : 0,
+              serviceDate: s.serviceDate ? dayjs(s.serviceDate, ["DD-MM-YYYY", "YYYY-MM-DD", "DD/MM/YYYY"]).toDate() : null,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            })) : undefined
+          }
+        },
+        include: this.soldInclude
+      });
+
+      return res.json({
+        code: 200,
+        response: {
+          code: 200,
+          message: "SoldVehicle updated",
+          data: this.formatVehicle(updated)
+        }
+      });
+    } catch (err) {
+      logger.error("Update sold vehicle error:", err);
+      return res.json({ code: 500, msg: "An error occured", error: err.message });
+    }
   };
 
   /**
@@ -112,13 +259,23 @@ class SoldVehicleController {
       const skip = (page - 1) * size;
       const inputValue = searchString || "";
 
+      // Branch/Manufacturer filtering for parity
+      const branchIds = req.user?.branch || [];
+      const branches = await prisma.branch.findMany({
+        where: { id: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
+        include: { manufacturer: true }
+      });
+      const manufacturerIds = [...new Set(branches.flatMap(b => (b.manufacturer || []).map(m => m.id)))];
+
       let where = {
-        OR: [
+        manufacturerId: manufacturerIds.length > 0 ? { in: manufacturerIds } : undefined,
+        OR: inputValue ? [
           { registerNo: { contains: inputValue, mode: 'insensitive' } },
           { chassisNo: { contains: inputValue, mode: 'insensitive' } },
           { engineNo: { contains: inputValue, mode: 'insensitive' } },
-          { Customer: { some: { name: { contains: inputValue, mode: 'insensitive' } } } }
-        ]
+          { Customer: { some: { name: { contains: inputValue, mode: 'insensitive' } } } },
+          { vehicleMaster: { modelName: { contains: inputValue, mode: 'insensitive' } } }
+        ] : undefined
       };
 
       if (color || vehicleFiles || vehicleServices) {
@@ -128,8 +285,8 @@ class SoldVehicleController {
       const [vehicles, count] = await Promise.all([
         prisma.vehicle.findMany({
           where,
-          take: size,
-          skip,
+          take: parseInt(size),
+          skip: parseInt(skip),
           orderBy: { createdAt: 'desc' },
           include: this.soldInclude
         }),
@@ -230,7 +387,7 @@ class SoldVehicleController {
       const vehicle = await prisma.vehicle.findFirst({
         where: {
           registerNo,
-          id: { not: id }
+          id: id ? { not: id } : undefined
         }
       });
       if (!vehicle) {

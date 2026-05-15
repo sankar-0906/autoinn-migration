@@ -121,7 +121,8 @@ class UploadController {
         data: {
           url: location,
           type: body.type,
-          vehicle: { connect: { id: body.id } }
+          vehicle: body.id ? { connect: { id: body.id } } : undefined,
+          createdAt: new Date(),
         }
       });
       return {

@@ -357,7 +357,7 @@ class MaterialIssueController {
       if (jobOrder) {
         await prisma.jobOrder.update({
           where: { id: jobOrder },
-          data: { jobStatus: "Material" }
+          data: { jobStatus: "Material Issued" }
         });
 
         await prisma.jobOrderLog.create({
@@ -663,10 +663,10 @@ class MaterialIssueController {
         if (!item.partNumber) continue;
 
         const inventory = await prisma.sparesInventory.findFirst({
-          where: { partNoId: item.partNumber.id, branchId: jobOrder.branchId }
+          where: { partId: item.partNumber.id, branchId: jobOrder.branchId }
         });
 
-        const phyQty = inventory ? parseFloat(inventory.physicalQuantity || 0) : 0;
+        const phyQty = inventory ? parseFloat(inventory.phyQuantity || 0) : 0;
         const requestedQty = parseFloat(item.quantity || 0);
 
         const partData = {

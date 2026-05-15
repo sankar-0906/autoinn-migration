@@ -201,6 +201,15 @@ class JobInvoiceController {
 
         // Ensure HSN is flattened if present
         mappedItem.hsn = mappedItem.hsn || item.hsn || item.sac || null;
+
+        // Convert item-level Decimal fields from Prisma strings to numbers
+        const itemDecimalFields = ['quantity', 'unitRate', 'gstRate', 'cgst', 'sgst', 'igst',
+          'igstAmount', 'cgstAmount', 'sgstAmount', 'discountAmount', 'discountPercent'];
+        itemDecimalFields.forEach(field => {
+          if (mappedItem[field] !== undefined && mappedItem[field] !== null) {
+            mappedItem[field] = Number(mappedItem[field]);
+          }
+        });
         
         return mappedItem;
       });
@@ -294,7 +303,7 @@ class JobInvoiceController {
             totalInvoice: parseFloat(totalInvoice) || 0,
             adjustment: parseFloat(adjustments) || 0,
             invoiceType: invoiceType || "jobOrder",
-            status: "PAID",
+            status: "INVOICED",
             remarks,
             internalComments,
             tcs: parseFloat(tcs) || 0,
@@ -308,14 +317,18 @@ class JobInvoiceController {
             discountType,
             discountPercent: parseFloat(discountPercent) || 0,
             discountRate: parseFloat(discountRate) || 0,
+            createdAt: new Date(),
+            updatedAt: new Date(),
             jobOrder: jobId ? { connect: { id: jobId } } : undefined,
             partyName: (partyName || jo?.customerId) ? { connect: { id: partyName || jo?.customerId } } : undefined,
             branch: branchId ? { connect: { id: branchId } } : undefined,
-            createdBy: user ? { connect: { id: user } } : undefined,
             SaleSpareInvoiceItem: saleItemInvoice && saleItemInvoice.length > 0 ? {
               create: saleItemInvoice.map(item => {
                 const isJobCode = !!(item.partNumber?.isJobCode || item.partNumber?.code || item.jobCode);
                 const isPart = !isJobCode && !!(item.partNumber?.partNumber || (item.partNumber?.id && !item.partNumber?.code));
+                // item-level discount: frontend sends discountAmount (raw value) and discountPercent (non-zero only for % mode)
+                const itemDiscountAmount = parseFloat(item.discountAmount ?? item.discount) || 0;
+                const itemDiscountPercent = parseFloat(item.discountPercent) || 0;
                 
                 return {
                   partNumber: (isPart && item.partNumber?.id) ? { connect: { id: item.partNumber.id } } : undefined,
@@ -327,9 +340,12 @@ class JobInvoiceController {
                   cgst: parseFloat(item.cgst) || 0,
                   sgst: parseFloat(item.sgst) || 0,
                   igst: parseFloat(item.igst) || 0,
-                  discountAmount: parseFloat(item.discountAmount) || 0,
+                  discountAmount: itemDiscountAmount,
+                  discountPercent: itemDiscountPercent,
                   hsn: (isPart && item.hsn?.id) ? { connect: { id: item.hsn.id } } : undefined,
                   sac: (isJobCode && (item.sac?.id || item.hsn?.id)) ? { connect: { id: item.sac?.id || item.hsn?.id } } : undefined,
+                  createdAt: new Date(),
+                  updatedAt: new Date(),
                   branch: branchId ? { connect: { id: branchId } } : undefined
                 };
               })
@@ -476,7 +492,9 @@ class JobInvoiceController {
                   cgst: parseFloat(item.cgst) || 0,
                   sgst: parseFloat(item.sgst) || 0,
                   igst: parseFloat(item.igst) || 0,
-                  discountAmount: parseFloat(item.discountAmount) || 0,
+                  // item-level discount: frontend sends discountAmount and discountPercent (non-zero only for % mode)
+                  discountAmount: parseFloat(item.discountAmount ?? item.discount) || 0,
+                  discountPercent: parseFloat(item.discountPercent) || 0,
                   hsn: (isPart && item.hsn?.id) ? { connect: { id: item.hsn.id } } : undefined,
                   sac: (isJobCode && (item.sac?.id || item.hsn?.id)) ? { connect: { id: item.sac?.id || item.hsn?.id } } : undefined,
                   createdAt: new Date(),
@@ -600,8 +618,9 @@ class JobInvoiceController {
 
       if (invoice) {
         const payments = await prisma.payment.findMany({
-          where: { moduleId: id, module: "JOB_INVOICE", status: "SUCCESS" },
-          include: { denominations: true, collectedBy: true, paidBy: true, branch: true, bank: true }
+          where: { moduleId: id, module: "JOB_INVOICE" },
+          include: { denominations: true, collectedBy: true, paidBy: true, branch: true, bank: true },
+          orderBy: { createdAt: 'asc' }
         });
 
         const formatted = this.formatSaleSpareInvoice(invoice);
@@ -660,6 +679,23 @@ class JobInvoiceController {
       ]);
 
       const formattedInvoices = invoices.map(inv => this.formatSaleSpareInvoice(inv));
+
+      // Attach payment records so frontend can compute remaining amount
+      if (formattedInvoices.length > 0) {
+        const invoiceIds = formattedInvoices.map(inv => inv.id);
+        const payments = await prisma.payment.findMany({
+          where: { module: "JOB_INVOICE", moduleId: { in: invoiceIds } },
+          include: { denominations: true, collectedBy: true, paidBy: true, branch: true, bank: true }
+        });
+        const paymentMap = {};
+        payments.forEach(p => {
+          if (!paymentMap[p.moduleId]) paymentMap[p.moduleId] = [];
+          paymentMap[p.moduleId].push(p);
+        });
+        formattedInvoices.forEach(inv => {
+          inv.payment = paymentMap[inv.id] || [];
+        });
+      }
 
       return res.status(200).json({
         code: 200,
@@ -732,19 +768,39 @@ class JobInvoiceController {
 
       const invoice = await prisma.saleSpareInvoice.findUnique({
         where: { id },
-        select: { jobOrderId: true }
+        select: { jobOrderId: true, totalInvoice: true }
       });
+
+      // === GUARD: If requesting PAID, verify actual payments cover the bill ===
+      let resolvedStatus = status || "PAID";
+      if (resolvedStatus === "PAID") {
+        const allSuccessPayments = await prisma.payment.findMany({
+          where: { module: "JOB_INVOICE", moduleId: id, status: "SUCCESS" }
+        });
+        const totalCollected = allSuccessPayments.reduce(
+          (sum, p) => sum + Number(p.collectedAmount || 0), 0
+        );
+        const invoiceBillAmount = Number(invoice?.totalInvoice || 0);
+        const isFullyPaid = invoiceBillAmount > 0 && totalCollected >= invoiceBillAmount;
+
+        if (!isFullyPaid) {
+          resolvedStatus = "INVOICED";
+          logger.info(`[updateStatus] Blocked PAID for ${id}: collected=${totalCollected}, bill=${invoiceBillAmount} — keeping INVOICED`);
+        }
+      }
+
+      const jobStatusToSet = resolvedStatus === "PAID" ? "PAID" : "Proforma Invoice";
 
       if (invoice && invoice.jobOrderId) {
         await prisma.jobOrder.update({
           where: { id: invoice.jobOrderId },
-          data: { jobStatus: status || "PAID" }
+          data: { jobStatus: jobStatusToSet }
         });
       }
 
       await prisma.saleSpareInvoice.update({
         where: { id },
-        data: { status: status || "PAID" }
+        data: { status: resolvedStatus }
       });
 
       return res.json({ code: 200, response: { code: 200, message: "Job status updated successfully" } });

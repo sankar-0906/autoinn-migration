@@ -9,6 +9,7 @@ const router = Router();
 router.use(auth);
 
 router.post("/", controller.createCustomer);
+router.put("/:id", controller.updateCustomer);
 router.get("/details/:id", controller.getDetails); // Added route for customer details
 router.get("/:id", controller.getOne);
 router.get("/phone/:id", controller.getByPhone);
