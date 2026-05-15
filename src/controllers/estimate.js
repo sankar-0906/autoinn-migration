@@ -41,7 +41,7 @@ class EstimateController {
     
     // If no specific access defined for ESTIMATE, we might want to allow by default or restrict.
     // The user said "after restricting", so we should respect the 'false' value.
-    if (estimateAccess && estimateAccess.access && estimateAccess.access[action] === false) {
+    if (!estimateAccess || !estimateAccess.access || estimateAccess.access[action] === false) {
       return false;
     }
     return true;
@@ -562,7 +562,7 @@ class EstimateController {
       const skip = (page - 1) * size;
       const inputValue = searchString || "";
 
-      const statusFilter = status ? { estimateStatus: status } : {};
+      const statusFilter = status ? { estimateStatus: { equals: status, mode: 'insensitive' } } : {};
 
       const where = {
         AND: [

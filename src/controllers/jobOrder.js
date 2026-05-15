@@ -621,7 +621,10 @@ class JobOrderController {
     const inputValue = searchString || "";
 
     let statusFilter = {};
-    if (status === "PENDING") {
+    if (filter && filter.jobStatus && filter.jobStatus.length > 0) {
+      // If jobStatus is provided in advanced filters, skip the tab status filter
+      statusFilter = {};
+    } else if (status === "PENDING") {
       statusFilter = { 
         OR: [
           { jobStatus: "Vehicle Received" },
@@ -1238,7 +1241,7 @@ class JobOrderController {
           data: {
             event: "Mechanic Allocated",
             JobOrder: { connect: { id: updated.id } },
-            data: updated.mechanicId || null,
+            data: `${updated.mechanic?.EmployeeProfile_User_profileToEmployeeProfile?.employeeId || "N/A"} - ${updated.mechanic?.EmployeeProfile_User_profileToEmployeeProfile?.employeeName || "N/A"}`,
             createdAt: new Date(),
             updatedAt: new Date()
           }
