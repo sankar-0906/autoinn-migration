@@ -130,12 +130,9 @@ class JobOrderLogController {
           if (formattedJO.fuelLevel !== undefined && formattedJO.fuelLevel !== null) formattedJO.fuelLevel = Number(formattedJO.fuelLevel);
           // Map Mechanic's EmployeeProfile to 'profile'
           if (formattedJO.mechanic) {
-            if (formattedJO.mechanic.EmployeeProfile_User_profileToEmployeeProfile) {
-              formattedJO.mechanic.profile = formattedJO.mechanic.EmployeeProfile_User_profileToEmployeeProfile;
-              delete formattedJO.mechanic.EmployeeProfile_User_profileToEmployeeProfile;
-            } else if (!formattedJO.mechanic.profile) {
-              formattedJO.mechanic.profile = { department: {} };
-            }
+            const profileData = formattedJO.mechanic.EmployeeProfile_User_profileToEmployeeProfile;
+            formattedJO.mechanic.profile = profileData || { department: {} };
+            if (profileData) delete formattedJO.mechanic.EmployeeProfile_User_profileToEmployeeProfile;
           }
         }
         return { ...rest, jobOrder: formattedJO };
