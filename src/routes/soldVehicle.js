@@ -1,12 +1,17 @@
 import { Router } from "express";
 import controller from "../controllers/soldVehicle.js";
 import { auth } from "../middlewares/auth.middleware.js";
+import multer from "multer";
 
 const router = Router();
+const upload = multer();
+const forms = upload.any();
 
 // Apply auth middleware
 router.use(auth);
 
+router.post("/", forms, controller.createSoldVehicle);
+router.put("/:id", forms, controller.updateSoldVehicle);
 router.get("/vehicleNum/:id", controller.getByRegNum);
 router.get("/:id", controller.getOne);
 router.get("/", controller.getAll);

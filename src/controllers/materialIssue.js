@@ -353,6 +353,23 @@ class MaterialIssueController {
         include: this.fragment
       });
 
+      // Update Job Order status and Create Log (Legacy parity)
+      if (jobOrder) {
+        await prisma.jobOrder.update({
+          where: { id: jobOrder },
+          data: { jobStatus: "Material Issued" }
+        });
+
+        await prisma.jobOrderLog.create({
+          data: {
+            jobOrder: jobOrder,
+            event: "Material",
+            data: materialIssue.id,
+            createdAt: new Date()
+          }
+        });
+      }
+
       // Update inventory and create transactions
       for (let item of materialItemInvoice) {
         if (item.partNumber?.id && branch) {
@@ -646,10 +663,10 @@ class MaterialIssueController {
         if (!item.partNumber) continue;
 
         const inventory = await prisma.sparesInventory.findFirst({
-          where: { partNoId: item.partNumber.id, branchId: jobOrder.branchId }
+          where: { partId: item.partNumber.id, branchId: jobOrder.branchId }
         });
 
-        const phyQty = inventory ? parseFloat(inventory.physicalQuantity || 0) : 0;
+        const phyQty = inventory ? parseFloat(inventory.phyQuantity || 0) : 0;
         const requestedQty = parseFloat(item.quantity || 0);
 
         const partData = {

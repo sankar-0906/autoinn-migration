@@ -76,7 +76,17 @@ async function syncDatabase() {
     { target: 'JobOrder', column: 'mechanic', type: 'VARCHAR(40)' },
     { target: 'JobOrder', column: 'serviceReminder', type: 'VARCHAR(40)' },
     { target: 'JobOrder', column: 'ramp', type: 'VARCHAR(40)' },
-    { target: 'JobVehicleParts', column: 'id', type: 'VARCHAR(40)' }
+    { target: 'JobVehicleParts', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'partyName', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'jobOrder', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoice', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'id', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'hsn', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'partNumber', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'branch', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'sac', type: 'VARCHAR(40)' },
+    { target: 'SaleSpareInvoiceItem', column: 'jobCode', type: 'VARCHAR(40)' }
   ];
 
   console.log("------------------- DB SYNC START -------------------");

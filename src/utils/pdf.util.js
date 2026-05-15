@@ -31,7 +31,7 @@ class PDFUtil {
     });
   }
 
-  async generatePDF(templateName, data) {
+  async generatePDF(templateName, data, margins = {}) {
     try {
       const templatePath = path.join(__dirname, '..', 'templates', `${templateName}.html`);
       const templateContent = await fs.readFile(templatePath, 'utf-8');
@@ -51,10 +51,10 @@ class PDFUtil {
         format: 'A4',
         printBackground: true,
         margin: {
-          top: '20px',
-          right: '20px',
-          bottom: '20px',
-          left: '20px'
+          top:    margins.top    || '10mm',
+          right:  margins.right  || '10mm',
+          bottom: margins.bottom || '10mm',
+          left:   margins.left   || '10mm',
         }
       });
 

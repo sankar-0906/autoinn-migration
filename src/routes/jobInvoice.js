@@ -8,9 +8,15 @@ const router = Router();
 router.use(auth);
 
 router.post("/", controller.createJobInvoice);
+router.delete("/part", controller.deletePart);
 router.get("/:id", controller.getOne);
+router.put("/:id", controller.updateJobInvoice);
+router.delete("/:id", controller.deleteJobInvoice);
 router.get("/checkExistence/:id", controller.checkExistence);
 router.get("/getJob/:id", controller.getJob);
 router.post("/get", controller.getPage);
+router.put("/updateStatus/:id", controller.updateStatus);
+router.post("/updateStatus", controller.updateStatus);
+router.post("/saveFeedback", controller.saveFeedback);
 
 export default router;

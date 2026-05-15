@@ -1,8 +1,12 @@
 import prisma from "../config/prisma.config.js";
 import logger from "../config/logger.config.js";
 import titleCase from "../utils/string.util.js";
+import moment from "moment";
+import QRCode from "qrcode";
 
 import IdGenerateController from "./idGenerate.js";
+import PDFUtil from "../utils/pdf.util.js";
+import { uploadPDFToSpaces } from "../utils/spaces.util.js";
 
 /**
  * Controller for Job Order operations.
@@ -621,36 +625,41 @@ class JobOrderController {
     } else if (status === "IN PROGRESS") {
       statusFilter = { 
         jobStatus: { 
-          in: ["Mechanic Allocated", "Spares Ordered", "Work In Progress", "Washing", "Final Inspection", "Material Issued"] 
+          in: ["Mechanic Allocated", "Spares Ordered", "Work In Progress", "Washing", "Final Inspection", "Material Issued", "Pending", "Network Needed"] 
         } 
       };
     } else if (status === "COMPLETED") {
-      statusFilter = { jobStatus: { in: ["Gate Pass", "Payment Received", "Invoice", "Proforma Invoice", "PAID"] } };
-    } else if (status) {
+      statusFilter = { jobStatus: { in: ["Gate Pass", "Payment Received", "Invoice", "Proforma Invoice", "PAID", "Ready for Delivery"] } };
+    } else if (status && status !== "ALL") {
       statusFilter = { jobStatus: status };
+    }
+
+    let searchFilter = {};
+    if (inputValue) {
+      searchFilter = {
+        OR: [
+          { jobNo: { contains: inputValue, mode: 'insensitive' } },
+          { serviceType: { contains: inputValue, mode: 'insensitive' } },
+          { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } },
+          { vehicle: { chassisNo: { contains: inputValue, mode: 'insensitive' } } },
+          { vehicle: { engineNo: { contains: inputValue, mode: 'insensitive' } } },
+          { customer: { name: { contains: inputValue, mode: 'insensitive' } } },
+          { 
+            customer: { 
+              CustomerPhone: { 
+                some: { phone: { contains: inputValue, mode: 'insensitive' } } 
+              } 
+            } 
+          }
+        ]
+      };
     }
 
     const where = {
       AND: [
         { branchId: { in: Array.isArray(branchIds) ? branchIds : [branchIds] } },
         statusFilter,
-        {
-          OR: [
-            { jobNo: { contains: inputValue, mode: 'insensitive' } },
-            { serviceType: { contains: inputValue, mode: 'insensitive' } },
-            { vehicle: { registerNo: { contains: inputValue, mode: 'insensitive' } } },
-            { vehicle: { chassisNo: { contains: inputValue, mode: 'insensitive' } } },
-            { vehicle: { engineNo: { contains: inputValue, mode: 'insensitive' } } },
-            { customer: { name: { contains: inputValue, mode: 'insensitive' } } },
-            { 
-              customer: { 
-                CustomerPhone: { 
-                  some: { phone: { contains: inputValue, mode: 'insensitive' } } 
-                } 
-              } 
-            }
-          ]
-        }
+        searchFilter
       ]
     };
 
@@ -690,7 +699,9 @@ class JobOrderController {
 
   getPage = async (req, res) => {
     try {
-      const branchIds = req.user?.branch || [];
+      let branchIds = req.body.branch || req.user?.branch || [];
+      if (typeof branchIds === 'string') branchIds = [branchIds];
+      
       const data = await this.getJobOrdersInternal(req.body, branchIds);
 
       return res.json({
@@ -745,11 +756,19 @@ class JobOrderController {
       const statusMap = {
         "Estimate": "Estimation",
         "Estimation Approved": "Estimation Approved",
+        "Mechanic": "Mechanic Allocated",
+        "Mechanic Allocated": "Mechanic Allocated",
         "Material": "Material Issued",
+        "Material Issued": "Material Issued",
         "Work In Progress": "Work In Progress",
+        "InProgress": "Work In Progress",
         "Washing": "Washing",
+        "Final Inspection": "Final Inspection",
         "Proforma Invoice": "Proforma Invoice",
-        "Final Inspection": "Final Inspection"
+        "Invoice": "Invoice",
+        "Payment Received": "Payment Received",
+        "Gate Pass": "Gate Pass",
+        "PAID": "PAID"
       };
 
       const updated = await prisma.jobOrder.update({
@@ -1162,15 +1181,26 @@ class JobOrderController {
   updateMechanic = async (req, res) => {
     try {
       const { id } = req.params;
-      const { mechanic } = req.body;
+      const { mechanic, status } = req.body;
       const user = req.user?.id || req.headers["user-id"];
+
+      const updateData = {
+        updatedAt: new Date()
+      };
+
+      if (status) {
+        updateData.jobStatus = status;
+      } else {
+        updateData.jobStatus = "Mechanic Allocated";
+      }
+
+      if (mechanic !== undefined) {
+        updateData.mechanic = mechanic ? { connect: { id: mechanic } } : { disconnect: true };
+      }
 
       const updated = await prisma.jobOrder.update({
         where: { id },
-        data: {
-          jobStatus: "Mechanic Allocated",
-          mechanic: mechanic ? { connect: { id: mechanic } } : { disconnect: true }
-        },
+        data: updateData,
         include: this.fragment
       });
 
@@ -1262,6 +1292,180 @@ class JobOrderController {
     } catch (err) {
       logger.error("Get job order by mobile error:", err);
       return res.json({ code: 500, msg: "An error occurred" });
+    }
+  };
+  /**
+   * Build the flat template data for the Job Order PDF.
+   * Matches legacy autoinn-be data structure for 100% template parity.
+   */
+  getTemplateData = (jobOrder) => {
+    const v = jobOrder.vehicle || {};
+    const vMaster = v.vehicle || {};
+    const branch = jobOrder.branch || {};
+    const customer = jobOrder.customer || {};
+    const contacts = customer.contacts || [];
+
+    // Date + Time in IST
+    const utcDate = new Date(jobOrder.createdAt);
+    const istDate = new Date(utcDate.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+    const date = `${istDate.getDate()}/${String(istDate.getMonth() + 1).padStart(2, '0')}/${istDate.getFullYear()}`;
+    const time = istDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+
+    // Date of Sale
+    let dateOfSale = "";
+    if (v.dateOfSale) {
+      const d = new Date(v.dateOfSale);
+      if (!isNaN(d.getTime())) {
+        dateOfSale = `${String(d.getUTCDate()).padStart(2, '0')}/${String(d.getUTCMonth() + 1).padStart(2, '0')}/${d.getUTCFullYear()}`;
+      }
+    }
+
+    // Color string
+    const color = v.color ? `${v.color.code || ""}-${v.color.color || ""}` : "";
+
+    // Complaints: pad to at least 5
+    const complaints = jobOrder.complaint || [];
+    const formattedComplaints = complaints.map((c, i) => ({
+      index: i + 1,
+      complaint: c.complaint || ""
+    }));
+    
+    // Add 2 empty rows like legacy (line 2439 in legacy controller seems to use remComplaint)
+    // Actually legacy template line 368 has a hardcoded empty row.
+    // Let's just provide the complaints and one empty row if needed, 
+    // but the template itself handles some layout.
+
+    // Format branch contacts as a string as legacy does
+    const branchCopy = JSON.parse(JSON.stringify(branch));
+    if (branchCopy.contacts) {
+      branchCopy.contacts = (branch.contacts || []).map(c => c.phone).join(" / ");
+    }
+
+    return {
+      vehicle: {
+        customer: {
+          name: customer.name || "",
+          contact: contacts.map(c => c.phone).join(" / ") || jobOrder.customerPhone || "",
+        },
+        date,
+        time,
+        cdate: moment(new Date()).format("DD-MM-YYYY"),
+        ctime: moment(new Date()).format("HH:mm"),
+        invoiceNo: jobOrder.jobNo,
+        manufacturer: vMaster.manufacturer?.name || "",
+        logo: vMaster.manufacturer?.logo || "",
+        modelName: vMaster.modelName || "",
+        color,
+        serviceType: jobOrder.serviceType || "",
+        registerNo: v.registerNo || "",
+        chassisNo: v.chassisNo || "",
+        engineNo: v.engineNo || "",
+        jobStatus: jobOrder.jobStatus,
+        serviceNo: jobOrder.serviceNo || "",
+        couponNo: jobOrder.couponNo || "",
+        jobNo: jobOrder.jobNo,
+        kms: jobOrder.kms || "",
+        QR: null, // will be set after QR generation
+        complaint: formattedComplaints,
+        branch: branchCopy,
+        dateOfSale
+      }
+    };
+  };
+
+  /**
+   * Generate PDF for a Job Order and upload to DigitalOcean Spaces.
+   * Returns the updated job order with jobOrderPdf URL.
+   */
+  generateAndUploadPDF = async (id) => {
+    try {
+      const jobOrderRaw = await prisma.jobOrder.findUnique({
+        where: { id },
+        include: {
+          ...this.fragment,
+          branch: {
+            include: {
+              manufacturer: true,
+              company: true,
+              address: { include: { district: true, state: true, country: true } },
+              contacts: true
+            }
+          }
+        }
+      });
+
+      if (!jobOrderRaw) return null;
+
+      const formatted = this.formatJobOrder(jobOrderRaw);
+      const templateData = this.getTemplateData(formatted);
+
+      // Generate QR Code as data URL
+      const qrDataUrl = await QRCode.toDataURL(formatted.jobNo || id);
+      templateData.vehicle.QR = qrDataUrl;
+
+      const pdfBuffer = await PDFUtil.generatePDF('jobOrder', templateData);
+      const fileName = `JOB${formatted.jobNo || id.substring(0, 8)}`;
+      const pdfUrl = await uploadPDFToSpaces(pdfBuffer, fileName, 'jobOrder');
+
+      const updated = await prisma.jobOrder.update({
+        where: { id },
+        data: { jobOrderPdf: pdfUrl },
+        include: this.fragment
+      });
+
+      return updated;
+    } catch (err) {
+      logger.error("Failed to generate/upload Job Order PDF:", err);
+      return null;
+    }
+  };
+
+  /**
+   * HTTP handler: GET /api/jobOrder/generatePDF/:id
+   * Generates (or returns cached) PDF and returns the S3 URL as JSON.
+   */
+  generatePDF = async (req, res) => {
+    try {
+      const { id } = req.params;
+
+      const jobOrder = await prisma.jobOrder.findUnique({
+        where: { id },
+        select: { id: true, jobNo: true, jobOrderPdf: true }
+      });
+
+      if (!jobOrder) {
+        return res.status(404).json({ code: 404, msg: "Job Order not found" });
+      }
+
+      // Always regenerate to ensure a fresh PDF with latest data
+      const updated = await this.generateAndUploadPDF(id);
+
+      if (updated && updated.jobOrderPdf) {
+        // Return the S3 URL so the frontend can open it
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            data: { pdfUrl: updated.jobOrderPdf }
+          }
+        });
+      }
+
+      // If generation failed but we have a cached URL, return that
+      if (jobOrder.jobOrderPdf) {
+        return res.json({
+          code: 200,
+          response: {
+            code: 200,
+            data: { pdfUrl: jobOrder.jobOrderPdf }
+          }
+        });
+      }
+
+      return res.status(500).json({ code: 500, msg: "Failed to generate Job Order PDF" });
+    } catch (err) {
+      logger.error("Generate Job Order PDF error:", err);
+      return res.status(500).json({ code: 500, msg: "An error occurred while generating PDF", error: err.message });
     }
   };
 }

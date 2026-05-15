@@ -3,419 +3,322 @@
 
 <head>
     <meta charset="utf-8" />
-    <title>Job Order</title>
+    <title>Estimate</title>
 
     <style>
-        .invoice-box {
-            width: 595px;
-            height: 790px;
-            font-size: 10px;
-            line-height: 12px;
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
             font-family: "Helvetica Neue", "Helvetica", Helvetica, Arial, sans-serif;
-            color: #555;
+            font-size: 11px;
+            line-height: 15px;
+            color: #333;
+            margin: 0;
+            padding: 0;
         }
 
-        .greet {
-            width: 550px;
-            font-size: 10px;
-            line-height: 10px;
+        .invoice-box {
+            width: 100%;
+            padding: 10px;
+            overflow: hidden;
         }
 
-        .invoice-box table {
-            /* width: 100%; */
-            line-height: inherit;
-            text-align: left;
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 10px;
+            table-layout: fixed;
         }
 
-        .invoice-box table td {
-            padding: 5px;
+        .header-table td {
+            border: none;
             vertical-align: top;
         }
 
-        .header-1 table tr td:nth-child(2) {
-            padding-left: 150px;
-            text-align: left;
+        .title-section {
+            text-align: center;
+            margin-bottom: 15px;
         }
 
-        .header-1 table tr.top table td {
-            padding-bottom: 20px;
-        }
-
-        .header-1 table tr.top table td.title {
-            font-size: 45px;
-            line-height: 45px;
-            color: #333;
-        }
-
-        .invoice-box table tr.information table td {
-            padding-bottom: 40px;
-        }
-
-        .inner-Row {
-            width: 40%;
-        }
-
-        .invoice-box table tr.heading td {
-            background: #eee;
-            border-bottom: 1px solid #ddd;
+        .estimate-title {
+            font-size: 20px;
+            color: darkblue;
             font-weight: bold;
+            letter-spacing: 1px;
         }
 
-        .invoice-box table tr.details td {
-            padding-bottom: 20px;
-        }
-
-        .titles {
-            width: 30px;
-        }
-
-        .invoice-box table tr.item td {
-            border-bottom: 1px solid #eee;
-        }
-
-        .invoice-box table tr.item.last td {
-            border-bottom: none;
-        }
-
-        .invoice-box table tr.total td:nth-child(2) {
-            border-top: 2px solid #eee;
-            font-weight: bold;
-        }
-
-        .info {
-            font-size: 10px;
-        }
-
-        .footer {
-            position: fixed;
-            left: 0;
-            bottom: 0;
-            font-size: 10px;
-            line-height: 10px !important;
+        .info-table {
             width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 5px;
+            table-layout: fixed;
         }
 
-        @media only screen and (max-width: 600px) {
-            .invoice-box table tr.top table td {
-                /* width: 100%; */
-                display: block;
-                text-align: center;
-            }
-
-            .invoice-box table tr.information table td {
-                /* width: 100%; */
-                display: block;
-                text-align: center;
-            }
+        .info-table td {
+            border: none;
+            padding: 2px 0;
+            word-break: break-word;
         }
 
-        @media print {
-            h2 {
-                page-break-before: always;
-            }
+        .section-header {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0 10px 0;
+            color: #555;
         }
 
-        /** RTL **/
-        .rtl {
-            direction: rtl;
-            font-family: Tahoma, "Helvetica Neue", "Helvetica", Helvetica, Arial,
-                sans-serif;
-        }
-
-        .rtl table {
-            text-align: right;
-        }
-
-        .rtl table tr td:nth-child(2) {
-            text-align: left;
-        }
-
-        /* #borderTable>th,tr, #borderTable>td, #borderTable>th{
+        .details-table {
+            width: 100%;
+            border-collapse: collapse;
             border: 1px solid black;
-        } */
-        #borderTable>tbody>tr,
-        #borderTable>tbody>tr>td,
-        #borderTable>tbody>tr>th {
-            border: 1px solid black;
-            height: 15px;
+            table-layout: fixed;
         }
+
+        .details-table thead td {
+            background-color: rgb(29, 169, 235);
+            color: #ffffff;
+            font-weight: bold;
+            text-align: center;
+            font-size: 10px;
+            padding: 5px;
+            border: 1px solid black;
+        }
+
+        .details-table tbody td {
+            border: 1px solid black;
+            padding: 5px;
+            font-size: 11px;
+            word-break: break-word;
+        }
+
+        .charges-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .charges-table td {
+            border: none;
+            width: 33.33%;
+            word-break: break-word;
+        }
+
+        .customer-signature-table {
+            width: 100%;
+            margin-top: 30px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .customer-signature-table td {
+            border: none;
+            font-weight: bold;
+        }
+
+        .customer-info-table {
+            width: 100%;
+            margin-top: 5px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .customer-info-table td {
+            border: none;
+            padding: 2px 0;
+            word-break: break-word;
+        }
+
+        .terms-section {
+            margin-top: 20px;
+        }
+
+        .terms-section h3 {
+            font-size: 13px;
+            margin-bottom: 5px;
+        }
+
+        .terms-section ul {
+            padding-left: 20px;
+            margin-top: 0;
+        }
+
+        .terms-section li {
+            line-height: 16px;
+            margin-bottom: 5px;
+            word-break: break-word;
+        }
+
+        .footer-table {
+            width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .footer-table td {
+            border: none;
+            word-break: break-word;
+        }
+
+        .bottom-table {
+            width: 100%;
+            margin-top: 10px;
+            border-collapse: collapse;
+            table-layout: fixed;
+        }
+
+        .bottom-table td {
+            border: none;
+            word-break: break-word;
+        }
+
+        .status-pending { color: #ffa500; font-weight: bold; }
+        .status-approved { color: #008000; font-weight: bold; }
+        .status-rejected { color: #ff0000; font-weight: bold; }
+
+        .line-item { margin-bottom: 4px; }
     </style>
 </head>
 
 <body>
     {{#each vehicle}}
     <div class="invoice-box">
-        <div class="header-1">
-            <table>
-                <tr>
-                    <td class="title">
-                        <img src="https://autocloudstorage.sgp1.digitaloceanspaces.com/testing/Transaction%20Master/Job%20Order//IMG-front-1607059439521-Logo.png"
-                            style="width: 100px; height: 50px;" />
-                    </td>
-                    <td class="title" style="padding-left: 280px;">
-                        <img src="https://autocloudstorage.sgp1.digitaloceanspaces.com/Production/Company%20Master/Manufacturer/India%20Yamaha%20Motors%20Private%20Limited/Logo/IMG-1597302763291-Yamaha%20Logo.png"
-                            style="width: 100px; height:50px;" />
-                    </td>
-                </tr>
-            </table>
-        </div>
-        <div class="heading">
-            <b>
-                <center style="font-size: 18px; color:darkblue;">ESTIMATE </center>
-            </b><br />
-        </div>
-        <div class="header-1" style="margin-bottom:-14px">
-            <table>
-                <tr>
-                    <td class="title">
-                    <td style="font-weight: bold; padding-left:0px ;">
-                        Supervisor Name :
-                    </td>
-                    <td>D Subramani - 9632542999</td>
-                    </td>
-                    <td class="title" style="padding-left: 80px;">
-                    <td style="width: 60px; font-weight: bold;">Job No :</td>
-                    <td style="width: 100px;">{{this.jobNo}}</td>
-                    </td>
-                </tr>
-            </table>
+        <table class="header-table">
+            <tr>
+                <td style="text-align: left; width: 150px;">
+                    <img src="{{this.logo}}" style="width: 120px; height: 60px; object-fit: contain;" />
+                </td>
+                <td style="text-align: right;">
+                    <img src="{{this.yamahaLogo}}" style="width: 120px; height: 60px; object-fit: contain;" />
+                </td>
+            </tr>
+        </table>
+
+        <div class="title-section">
+            <div class="estimate-title">ESTIMATE</div>
         </div>
 
-        <div class="header-1" style="margin-bottom:-14px">
-            <table>
-                <tr>
-                    <td class="title">
-                    <td style="font-weight: bold; padding-left:0px ;">
-                        Service Type :
-                    </td>
-                    <td>{{this.serviceType}}</td>
-                    </td>
-                    {{#if (eq this.serviceType "Accidental")}}
-                    <td class="title" style="padding-left: 80px;">
-                    <td style="width: 60px; font-weight: bold;">Claim Type:</td>
-                    <td style="width: 100px;">{{this.claimType}}</td>
-                    </td>
-                    <td class="title" style="padding-left: 80px;">
-                    <td style="width: 60px; font-weight: bold;">Claim Status:</td>
-                    <td style="width: 100px;">{{#if this.claimStatus}}Yes{{else}}No{{/if}}</td>
-                    </td>
-                    {{/if}}
-                </tr>
-            </table>
-        </div>
+        <table class="info-table">
+            <tr>
+                <td style="width: 20%;"><b>Supervisor Name :</b></td>
+                <td style="width: 40%;">D Subramani - 9632542999</td>
+                <td style="width: 15%; text-align: right;"><b>Job No :</b></td>
+                <td style="width: 25%; text-align: right;">{{this.jobNo}}</td>
+            </tr>
+            <tr>
+                <td><b>Service Type :</b></td>
+                <td colspan="3">{{this.serviceType}}</td>
+            </tr>
+        </table>
 
         {{#if (eq this.serviceType "Accidental")}}
-        <div class="header-1" style="margin-bottom:-14px">
-            <table>
-                <tr>
-                    {{#if this.insurer}}
-                    <td class="title">
-                    <td style="font-weight: bold; padding-left:0px ;">
-                        Insurer :
-                    </td>
-                    <td>{{this.insurer}}</td>
-                    </td>
-                    {{/if}}
-                    {{#if this.survivor}}
-                    <td class="title" style="padding-left: 80px;">
-                    <td style="width: 60px; font-weight: bold;">Surveyor:</td>
-                    <td style="width: 100px;">{{this.survivor}}</td>
-                    </td>
-                    {{/if}}
-                </tr>
-            </table>
-        </div>
-        {{#if this.survivorContact}}
-        <div class="header-1" style="margin-bottom:-14px">
-            <table>
-                <tr>
-                    <td class="title">
-                    <td style="font-weight: bold; padding-left:0px ;">
-                        Surveyor Contact :
-                    </td>
-                    <td>{{this.survivorContact}}</td>
-                    </td>
-                </tr>
-            </table>
-        </div>
-        {{/if}}
+        <table class="info-table" style="margin-top: 5px; border: 1px solid #ddd; padding: 5px;">
+            <tr>
+                <td style="width: 80px;"><b>Claim Type:</b></td>
+                <td>{{this.claimType}}</td>
+                <td style="width: 80px;"><b>Claim Status:</b></td>
+                <td>{{#if this.claimStatus}}Yes{{else}}No{{/if}}</td>
+            </tr>
+            <tr>
+                <td><b>Insurer:</b></td>
+                <td>{{this.insurer}}</td>
+                <td><b>Surveyor:</b></td>
+                <td>{{this.survivor}}</td>
+            </tr>
+        </table>
         {{/if}}
 
-        {{#if this.estimate.length}}
-        <div class="heading">
-            <br /><br />
-            <b>
-                <center style="font-size: 18px;">Estimate Details</center>
-            </b><br />
-        </div>
-        <div>
-            {{#if (eq this.serviceType "Accidental")}}
-            <div class="accidental-details">
-                <h3>Accidental Service Details</h3>
-                <table class="tableBorder" width="100%">
-                    <tr>
-                        <th class="tableBorder">Claim Type</th>
-                        <td class="tableBorder">{{this.claimType}}</td>
-                        <th class="tableBorder">Insurer</th>
-                        <td class="tableBorder">{{this.insurer}}</td>
-                    </tr>
-                    <tr>
-                        <th class="tableBorder">Surveyor Name</th>
-                        <td class="tableBorder">{{this.survivor}}</td>
-                        <th class="tableBorder">Surveyor Contact</th>
-                        <td class="tableBorder">{{this.survivorContact}}</td>
-                    </tr>
-                </table>
-            </div>
-            {{/if}}
+        <div class="section-header">Estimate Details</div>
 
-            <table style="width: 560px; border: 1px solid black;border-collapse: collapse; ">
-                <thead
-                    style="font-weight: bold;color: #ffffff;text-align: center; font-size: 8px; background-color: rgb(29, 169, 235); border: 1px solid black;">
-                    <td style="border: 1px solid black">S.no</td>
-                    <td style="border: 1px solid black;width: 200px;">Part details</td>
-                    <td style="border: 1px solid black">Quantity</td>
-                    <td style="border: 1px solid black">Unit Rate</td>
-                    <td style="border: 1px solid black">Gross Amount</td>
-                    <td style="border: 1px solid black">Status</td>
-                    <!-- <td style="border: 1px solid black">Image</td> -->
-                </thead>
+        <table class="details-table">
+            <thead>
+                <tr>
+                    <td style="width: 5%;">S.no</td>
+                    <td style="width: 40%;">Part details</td>
+                    <td style="width: 10%;">Quantity</td>
+                    <td style="width: 15%;">Unit Rate</td>
+                    <td style="width: 15%;">Amount</td>
+                    <td style="width: 15%;">Status</td>
+                </tr>
+            </thead>
+            <tbody>
                 {{#each this.estimate}}
                 <tr>
-                    <td style="border: 1px solid black; text-align: center;">{{this.index}}</td>
-                    <td style="border: 1px solid black;">{{this.partNumber}}</td>
-                    <td style="border: 1px solid black;">{{this.quantity}}</td>
-                    <td style="border: 1px solid black;">{{this.unitRate}}</td>
-                    <td style="border: 1px solid black;">{{this.rate}}</td>
-                    <td style="border: 1px solid black; text-align: center;">
-                        {{#if this.status}}
+                    <td style="text-align: center;">{{this.index}}</td>
+                    <td>{{this.partNumber}}</td>
+                    <td style="text-align: center;">{{this.quantity}}</td>
+                    <td style="text-align: center;">{{this.unitRate}}</td>
+                    <td style="text-align: center;">{{this.rate}}</td>
+                    <td style="text-align: center;">
                         {{#if (eq this.status 'APPROVED')}}
-                        <span style="color: #008000;">{{this.status}}</span>
+                            <span class="status-approved">{{this.status}}</span>
                         {{else if (eq this.status 'REJECTED')}}
-                        <span style="color: #ff0000;">{{this.status}}</span>
+                            <span class="status-rejected">{{this.status}}</span>
                         {{else}}
-                        <span style="color: #ffa500;">{{this.status}}</span>
-                        {{/if}}
-                        {{else}}
-                        <span style="color: #ffa500;">PENDING</span>
+                            <span class="status-pending">PENDING</span>
                         {{/if}}
                     </td>
-                    <!-- <td style="border: 1px solid black; text-align: center;">
-                        {{#if this.imageUrl}}
-                        <img src="{{this.imageUrl}}" style="width: 50px; height: 50px; object-fit: cover;" />
-                        {{else}}
-                        No Image
-                        {{/if}}
-                    </td> -->
                 </tr>
                 {{/each}}
-            </table>
-        </div>
-        {{/if}}
+            </tbody>
+        </table>
 
-        <table style="width: 600px;margin-top: 20px; ">
+        <table class="charges-table">
             <tr>
-                <td>
-                    <p>Labour Charge :{{this.labourCharge}}</p>
-                </td>
-                <td>
-                    <p>Part Charge :{{this.partCharge}}</p>
-                </td>
-                <td>
-                    <p>Consumable Charge :{{this.consumableCharge}}</p>
-                </td>
-            </tr>
-        </table>
-        <table id="rowSign" style="width: 800px;margin-top: 20px; ">
-            <tr style="margin-top: 30px;">
-                <td style="font-weight: bold;"> Customer Information</td>
-                <td style="font-weight: bold;">Customer Signature</td>
-            </tr>
-        </table>
-        <table style="width: 350px">
-            <tr>
-                <td>
-                    Name: {{this.customer.name}}</td>
-            </tr>
-            <tr>
-                <td>Mobile : {{this.customer.contact}}
-                </td>
+                <td>Labour Charge :{{this.labourCharge}}</td>
+                <td>Part Charge :{{this.partCharge}}</td>
+                <td>Consumable Charge :{{this.consumableCharge}}</td>
             </tr>
         </table>
 
-        <div style="width: 560px">
+        <table class="customer-signature-table">
+            <tr>
+                <td>Customer Information</td>
+                <td style="text-align: right;">Customer Signature</td>
+            </tr>
+        </table>
+
+        <table class="customer-info-table">
+            <tr>
+                <td>Name: {{this.customer.name}}</td>
+            </tr>
+            <tr>
+                <td>Mobile : {{this.customer.contact}}</td>
+            </tr>
+        </table>
+
+        <div class="terms-section">
             <h3>Terms and Conditions:</h3>
             <ul>
-                <li style="font-size: 1em;
-                    margin-block-start: 1em;
-                    margin-block-end: 1em;
-                    margin-inline-start: 0px;
-                    margin-inline-end: 0px;
-                    line-height: 16px; ">
-                    I Agree to all the Jobs Mentioned Above. And If any parts required it will be at my cost. Any
-                    Additional Job or Parts Required will be borne by me.
-                </li>
-                <li style="font-size: 1em;
-                margin-block-start: 1em;
-                margin-block-end: 1em;
-                margin-inline-start: 0px;
-                margin-inline-end: 0px;
-                line-height: 16px; ">
-                    Estimate given is for Approx Amount. Actual Bill may vary + 18% GST will be Applicable.
-                </li>
-                <li style="font-size: 1em;
-                margin-block-start: 1em;
-                margin-block-end: 1em;
-                margin-inline-start: 0px;
-                margin-inline-end: 0px;
-                line-height: 16px; ">
-                    If Vehicle Delivery is not taken on time, Parking Charges of Rs 50/- per day will be applicable.
-                </li>
+                <li>I Agree to all the Jobs Mentioned Above. And If any parts required it will be at my cost. Any Additional Job or Parts Required will be borne by me.</li>
+                <li>Estimate given is for Approx Amount. Actual Bill may vary + 18% GST will be Applicable.</li>
+                <li>If Vehicle Delivery is not taken on time, Parking Charges of Rs 50/- per day will be applicable.</li>
             </ul>
         </div>
-        <table style="width: 660px;margin-bottom: -16px;">
+
+        <table class="footer-table">
             <tr>
-                <td>
-                    <p>Please Bring the Counter Foil for Delivery.</p>
-                </td>
-                <td>
-                    <p>
-                        Contact : 9632542999
-                    </p>
-                </td>
+                <td>Please Bring the Counter Foil for Delivery.</td>
+                <td style="text-align: right;">Contact : 9632542999</td>
             </tr>
         </table>
-        <table style="width: 600px;margin-bottom: -25px;margin-top: 10px; ">
+
+        <table class="bottom-table">
             <tr>
-                <td>
-                    <p>Date :{{this.cdate}}</p>
-                </td>
-                <!-- <td style="text-align: center;">
-                    <p>Vehicle No:{{this.registerNo}}</p>
-                </td> -->
-                <!-- <td>
-                    <h4>Customer Signature</h4>
-                </td> -->
+                <td>Date :{{this.cdate}}</td>
+                <td style="text-align: right;"></td>
             </tr>
-        </table>
-        <table style="width: 380px">
             <tr>
-                <td>
-                    <p>Time :{{this.ctime}}</p>
-                </td>
-                <td style="text-align: center;">
-                    <p>Total Estimate Amount: {{this.estTotalAmount}}</p>
-                </td>
-                <!-- <td style="text-align: center;">
-                    <p>Approx Amount:</p>
-                </td> -->
+                <td>Time :{{this.ctime}}</td>
+                <td style="text-align: center;">Total Estimate Amount: {{this.estTotalAmount}}</td>
             </tr>
         </table>
     </div>
-    <h2></h2>
-    <br />
-    <br />
-    <br />
+    <div style="page-break-after: always;"></div>
     {{/each}}
 </body>
 

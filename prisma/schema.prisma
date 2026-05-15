@@ -1867,7 +1867,7 @@ model PurchaseSpareInvoiceItem {
 }
 
 model SaleSpareInvoice {
-  id                   String                 @id @default(cuid()) @db.VarChar(25)
+  id                   String                 @id @default(cuid()) @db.VarChar(40)
   invoiceDate          DateTime?
   invoiceNumber        String?
   itemRate             String?
@@ -1883,10 +1883,10 @@ model SaleSpareInvoice {
   totalInvoice         Decimal?
   createdAt            DateTime
   updatedAt            DateTime               @updatedAt
-  partyNameId          String?                @map("partyName") @db.VarChar(25)
-  jobOrderId           String?                @map("jobOrder") @db.VarChar(25)
+  partyNameId          String?                @map("partyName") @db.VarChar(40)
+  jobOrderId           String?                @map("jobOrder") @db.VarChar(40)
   invoiceType          String?
-  branchId             String?                @map("branch") @db.VarChar(25)
+  branchId             String?                @map("branch") @db.VarChar(40)
   labourCharge         Decimal?
   partsCharge          Decimal?
   consumableCharge     Decimal?
@@ -1902,7 +1902,7 @@ model SaleSpareInvoice {
 }
 
 model SaleSpareInvoiceItem {
-  id               String             @id @default(cuid()) @db.VarChar(25)
+  id               String             @id @default(cuid()) @db.VarChar(40)
   partName         String?
   quantity         Decimal?
   unitRate         Decimal?
@@ -1917,11 +1917,11 @@ model SaleSpareInvoiceItem {
   discountPercent  Decimal?
   createdAt        DateTime
   updatedAt        DateTime           @updatedAt
-  hsnId            String?            @map("hsn") @db.VarChar(25)
-  partNumberId     String?            @map("partNumber") @db.VarChar(25)
-  branchId         String?            @map("branch") @db.VarChar(25)
-  sacId            String?            @map("sac") @db.VarChar(25)
-  jobCodeId        String?            @map("jobCode") @db.VarChar(25)
+  hsnId            String?            @map("hsn") @db.VarChar(40)
+  partNumberId     String?            @map("partNumber") @db.VarChar(40)
+  branchId         String?            @map("branch") @db.VarChar(40)
+  sacId            String?            @map("sac") @db.VarChar(40)
+  jobCodeId        String?            @map("jobCode") @db.VarChar(40)
   branch           Branch?            @relation("SaleSpareInvoiceHasBranch", fields: [branchId], references: [id], onUpdate: NoAction)
   hsn              Hsn?               @relation("SaleSpareInvoiceItemHasHSN", fields: [hsnId], references: [id], onUpdate: NoAction)
   jobCode          JobCode?           @relation("SaleSpareInvoiceItemHasJobCode", fields: [jobCodeId], references: [id], onUpdate: NoAction)

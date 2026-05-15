@@ -9,6 +9,7 @@ router.use(auth);
 
 router.post("/", controller.createJobOrder);
 router.get("/vehicleHistory/:id", controller.historyVehicleJobs);
+router.get("/generatePDF/:id", controller.generatePDF);
 router.get("/:id", controller.getOne);
 router.post("/get", controller.getPage);
 router.post("/getPendingInProgress", controller.getPendingInProgress);

@@ -33,6 +33,7 @@ class PartsMasterController {
     if (!p) return p;
     return {
       ...p,
+      number: p.partNumber, // Legacy parity
       vehicleSuit: (p.vehicleSuit || []).map(suit => ({
         ...suit,
         vehicle: suit.VehicleMaster || null

@@ -60,6 +60,7 @@ import inventoryTransfersRoutes from "./inventoryTransfers.js";
 import numberPlateRoutes from "./numberPlate.js";
 import paymentRoutes from "./payment.js";
 import rampRoutes from "./ramp.js";
+import pymidolRoutes from "./pymidol.js";
 
 const router = Router();
 
@@ -94,6 +95,7 @@ router.use("/vehicle", soldVehicleRoutes);
 router.use("/jobCode", jobCodeRoutes);
 router.use("/estimate", estimateRoutes);
 router.use("/jobInvoice", jobInvoiceRoutes);
+router.use("/jobinvoice", jobInvoiceRoutes);
 router.use("/saleSpareInvoice", saleSpareInvoiceRoutes);
 router.use("/gstVerify", gstVerifyRoutes);
 router.use("/pdfGenerate", pdfGenerateRoutes);
@@ -129,5 +131,6 @@ router.use("/numberPlate", numberPlateRoutes);
 router.use("/numberplate", numberPlateRoutes);
 router.use("/payment", paymentRoutes);
 router.use("/ramp", rampRoutes);
+router.use("/pymidol", pymidolRoutes);
 
 export default router;

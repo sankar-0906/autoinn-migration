@@ -72,6 +72,18 @@ class PaymentController {
         include: this.fragment
       });
 
+      // === Job Invoice: mark invoice as INVOICED on payment creation ===
+      if (module === "JOB_INVOICE" && moduleId) {
+        try {
+          await prisma.saleSpareInvoice.update({
+            where: { id: moduleId },
+            data: { status: "INVOICED", updatedAt: new Date() }
+          });
+        } catch (invoiceErr) {
+          logger.error("createPaymentPending: failed to set invoice INVOICED status:", invoiceErr);
+        }
+      }
+
       return {
         code: 200,
         message: "Payment created with PENDING status",
@@ -86,6 +98,7 @@ class PaymentController {
       };
     }
   };
+
 
   updatePayment = async (data, user) => {
     try {
@@ -204,6 +217,51 @@ class PaymentController {
         data: updateData,
         include: this.fragment
       });
+
+      // === Job Invoice: check total collected vs billAmount and set status ===
+      if (updatedPayment.module === "JOB_INVOICE" && updatedPayment.moduleId) {
+        try {
+          const invoiceId = updatedPayment.moduleId;
+
+          // Sum all SUCCESS payments for this invoice
+          const allSuccessPayments = await prisma.payment.findMany({
+            where: { module: "JOB_INVOICE", moduleId: invoiceId, status: "SUCCESS" }
+          });
+          const totalCollected = allSuccessPayments.reduce(
+            (sum, p) => sum + Number(p.collectedAmount || 0), 0
+          );
+
+          const invoice = await prisma.saleSpareInvoice.findUnique({
+            where: { id: invoiceId },
+            select: { id: true, totalInvoice: true, jobOrderId: true }
+          });
+
+          if (invoice) {
+            const invoiceBillAmount = Number(invoice.totalInvoice || 0);
+            // Safety: only mark PAID if bill amount is valid and fully collected
+            const isFullyPaid = invoiceBillAmount > 0 && totalCollected >= invoiceBillAmount;
+            const newInvoiceStatus = isFullyPaid ? "PAID" : "INVOICED";
+
+            logger.info(`[Payment] JOB_INVOICE ${invoiceId}: totalCollected=${totalCollected}, billAmount=${invoiceBillAmount}, isFullyPaid=${isFullyPaid}`);
+
+            // Update invoice status
+            await prisma.saleSpareInvoice.update({
+              where: { id: invoiceId },
+              data: { status: newInvoiceStatus, updatedAt: new Date() }
+            });
+
+            // Update jobOrder.jobStatus to match
+            if (invoice.jobOrderId) {
+              await prisma.jobOrder.update({
+                where: { id: invoice.jobOrderId },
+                data: { jobStatus: isFullyPaid ? "PAID" : "Proforma Invoice" }
+              });
+            }
+          }
+        } catch (statusErr) {
+          logger.error("updatePayment: failed to update invoice/jobOrder status:", statusErr);
+        }
+      }
 
       // Update CompanyDenominationInventory
       for (const d of denominations) {

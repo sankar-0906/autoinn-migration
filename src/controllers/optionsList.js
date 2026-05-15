@@ -116,9 +116,19 @@ class OptionsListController {
             include: { manufacturer: true, hsn: true, vehicleSuit: { include: { VehicleMaster: true } } },
             take: 100
           });
-          // Parity for vehicleSuit
+          // Parity for vehicleSuit and GST
           optionsList = optionsList.map(p => ({
             ...p,
+            gstRate: p.hsn ? Number(p.hsn.igst) : 0,
+            igst: p.hsn ? Number(p.hsn.igst) : 0,
+            cgst: p.hsn ? Number(p.hsn.cgst) : 0,
+            sgst: p.hsn ? Number(p.hsn.sgst) : 0,
+            hsn: p.hsn ? {
+              ...p.hsn,
+              igst: Number(p.hsn.igst),
+              cgst: Number(p.hsn.cgst),
+              sgst: Number(p.hsn.sgst)
+            } : null,
             vehicleSuit: (p.vehicleSuit || []).map(vs => ({ ...vs, vehicle: vs.VehicleMaster }))
           }));
           break;
@@ -200,11 +210,25 @@ class OptionsListController {
             take,
             skip
           });
-          // Map JobCodePrice to vehicleModel for parity
-          optionsList = optionsList.map(jc => ({
-            ...jc,
-            vehicleModel: jc.JobCodePrice[0] || null // Legacy expected single object or first match
-          }));
+          // Map JobCodePrice to vehicleModel and GST for parity
+          optionsList = optionsList.map(jc => {
+            const numericSac = jc.sac ? {
+              ...jc.sac,
+              igst: Number(jc.sac.igst),
+              cgst: Number(jc.sac.cgst),
+              sgst: Number(jc.sac.sgst)
+            } : null;
+            return {
+              ...jc,
+              sac: numericSac,
+              hsn: numericSac,
+              gstRate: numericSac ? numericSac.igst : 0,
+              igst: numericSac ? numericSac.igst : 0,
+              cgst: numericSac ? numericSac.cgst : 0,
+              sgst: numericSac ? numericSac.sgst : 0,
+              vehicleModel: jc.JobCodePrice[0] || null
+            };
+          });
           break;
 
         case "sparesInventories":
@@ -228,6 +252,24 @@ class OptionsListController {
             take,
             skip
           });
+          // For sparesInventory, we must return the PART objects directly for the dropdown to work correctly
+          // as per "see available parts in SparesInventory section" requirement.
+          optionsList = optionsList.map(inv => ({
+            ...inv,
+            ...(inv.partNo || {}),
+            gstRate: inv.partNo?.hsn ? Number(inv.partNo.hsn.igst) : 0,
+            igst: inv.partNo?.hsn ? Number(inv.partNo.hsn.igst) : 0,
+            cgst: inv.partNo?.hsn ? Number(inv.partNo.hsn.cgst) : 0,
+            sgst: inv.partNo?.hsn ? Number(inv.partNo.hsn.sgst) : 0,
+            hsn: inv.partNo?.hsn ? {
+              ...inv.partNo.hsn,
+              igst: Number(inv.partNo.hsn.igst),
+              cgst: Number(inv.partNo.hsn.cgst),
+              sgst: Number(inv.partNo.hsn.sgst)
+            } : null,
+            inventoryId: inv.id,
+            availableQty: Number(inv.phyQuantity)
+          }));
           break;
 
         case "user":
